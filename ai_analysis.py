@@ -125,14 +125,16 @@ def _call(model, prompt, use_search):
 
 
 def call_gemini(prompt):
-    """多模型 + 重试 + 联网降级链，尽量保证拿到研判。"""
+    """多模型 + 重试 + 联网降级链，尽量保证拿到研判。
+
+    排序原则：已知可用的模型+联网优先；broken/不存在的模型会浪费 3 次重试，要剔除。
+    """
     import time
-    # 优先级：联网优先，模型从快→强
+    # 优先级：联网优先，模型从快→稳
     attempts = [
-        (MODEL, True),            # gemini-2.5-flash + 联网
-        ("gemini-2.5-pro", True), # gemini-2.5-pro + 联网
-        (MODEL, False),           # gemini-2.5-flash 纯文本（无联网）
-        ("gemini-2.0-flash", True),
+        (MODEL, True),              # gemini-2.5-flash + 联网（主路径）
+        ("gemini-2.0-flash", True), # 2.0 兜底
+        (MODEL, False),             # 纯文本（联网挂了时）
         ("gemini-2.0-flash", False),
     ]
     last_err = None
