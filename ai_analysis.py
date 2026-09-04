@@ -18,6 +18,7 @@ ai_analysis.py — 调用 SiliconFlow（硅基流动，OpenAI 兼容 API）做 A
 import datetime
 import json
 import os
+import re
 import time
 import urllib.error
 import urllib.request
@@ -196,8 +197,8 @@ def build_prompt(m, news, news_source):
 请输出 JSON（response_format=json_object 强制 JSON，不要任何 markdown 包裹或额外文字），字段：
 
 {{
-  "conclusion": "一句话结论（中文，核心驱动 + 资金流向 + 明日关注）",
-  "q4_why_buy": "交易前4问·第1问：为什么买",
+  "conclusion": "一句话结论（中文；只总结已提供事实，因果必须写成推断；没有资金流数据时禁止声称资金流入/流出）",
+  "q4_why_buy": "不要替用户建议买入；列出持仓逻辑仍需验证的证据",
   "q4_when_sell": "交易前4问·第2问：什么情况认错卖（具体触发条件）",
   "q4_emotion": "交易前4问·第3问：情绪 0-10 分 + 一句话（≥7 分建议等24小时）",
   "q4_worst": "交易前4问·第4问：最差会怎样（结合风控：单只≤20%/现金≥10%/连亏3笔暂停/财报前不重仓）",
@@ -239,6 +240,8 @@ def build_prompt(m, news, news_source):
   不得为了凑类别或数字创造事件、来源、资金流或因果关系
 - news 给 5-8 条精选（跨主题）
 - 事实只能来自所提供的行情、标题、摘要和 URL；观点必须标为“推断”
+- 已经公布的事件不得写成明日关注；不能从股价上涨反推财报超预期
+- 不输出“可以买入/卖出”这类泛化建议，交易前四问只用于验证和证伪
 - 中文输出
 """
 
@@ -291,14 +294,21 @@ def call_siliconflow(prompt):
 
 def validate_grounding(analysis, news):
     """Drop AI cards that cannot be traced to one of the supplied URLs."""
-    allowed_urls = {str(item.get("link", "")).strip() for item in news if item.get("link")}
-    allowed_sources = {str(item.get("source", "")).strip() for item in news if item.get("source")}
+    source_by_url = {str(item.get("link", "")).strip(): item for item in news if item.get("link")}
+
+    def title_overlap(left, right):
+        a = set(re.findall(r"[a-z0-9$]+", left.lower()))
+        b = set(re.findall(r"[a-z0-9$]+", right.lower()))
+        return len(a & b) / max(len(a | b), 1)
     cards = []
     for card in analysis.get("news_cards", [])[:6]:
         url = str(card.get("evidence_url", "")).strip()
         source = str(card.get("source", "")).strip()
-        if url in allowed_urls and source in allowed_sources:
-            card["evidence_type"] = "事实" if card.get("evidence_type") == "事实" else "推断"
+        original = source_by_url.get(url)
+        if (original and source == str(original.get("source", "")).strip()
+                and title_overlap(str(card.get("title", "")), str(original.get("title", ""))) >= .35):
+            card["title"] = original["title"]
+            card["evidence_type"] = "标题事实 + AI推断"
             cards.append(card)
     analysis["news_cards"] = cards
     allowed_pairs = {(str(item.get("title", "")).strip(), str(item.get("source", "")).strip())

@@ -286,6 +286,8 @@ def fetch_options_one(sym):
             near = calls[(calls["strike"] >= last * 0.95) & (calls["strike"] <= last * 1.05)]
             ivs = near["impliedVolatility"].dropna() if "impliedVolatility" in calls.columns else None
             iv_raw = float(ivs.median()) if ivs is not None and len(ivs) > 0 else None
+            if iv_raw is not None and not 0.05 <= iv_raw <= 5:
+                iv_raw = None
         else:
             iv_raw = None
         call_vol = int(calls["volume"].fillna(0).sum()) if "volume" in calls.columns else 0
