@@ -41,9 +41,9 @@ jobs:
       - name: Fetch market data
         run: python fetch_data.py
 
-      - name: AI analysis (Gemini + search)
+      - name: AI analysis (SiliconFlow)
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          SILICONFLOW_API_KEY: ${{ secrets.SILICONFLOW_API_KEY }}
         run: python ai_analysis.py
 
       - name: Generate dashboard

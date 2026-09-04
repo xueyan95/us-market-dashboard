@@ -1,13 +1,13 @@
 # 每日美股行情看板 · GitHub Actions 自托管版
 
 完全脱离 WorkBuddy：GitHub Actions 每天自动跑两次（收盘复盘 + 盘前速览），
-用 Gemini（AI Studio 免费 key）联网研判，生成单文件 HTML 看板，并推送摘要到 Telegram。
+用 SiliconFlow（硅基流动，OpenAI 兼容 API）做 AI 研判，生成单文件 HTML 看板，并推送摘要到 Telegram。
 
 ## 流水线
 
 ```
 fetch_data.py（行情+财报+情绪）
-    → ai_analysis.py（Gemini 联网研判）
+    → ai_analysis.py（SiliconFlow 研判 + yfinance 新闻上下文）
         → gen_dashboard.py（生成 index.html）
             → notify_telegram.py（Telegram 推送）
                 → deploy job → GitHub Pages（多端直接访问）
@@ -18,9 +18,10 @@ fetch_data.py（行情+财报+情绪）
 | 行情 / RSI / 乖离率 | westock-data-clawhub（npm） | 无 |
 | 财报日历 | Nasdaq keyless API | 无 |
 | 指数 / VIX / 美债 / 黄金 / BTC | yfinance | 无 |
-| AI 研判 + 新闻 + FedWatch | Gemini 2.5 Flash（Google Search grounding） | **GEMINI_API_KEY** |
+| 近期新闻上下文 | yfinance `Ticker.news` | 无 |
+| AI 研判 + FedWatch | SiliconFlow（硅基流动，OpenAI 兼容） | **SILICONFLOW_API_KEY** |
 | Telegram 推送 | Telegram Bot API | **TELEGRAM_BOT_TOKEN** + **TELEGRAM_CHAT_ID**（可空，缺则静默跳过） |
-| 多端访问 | GitHub Pages（自动部署） | 无（仓库需开放 Pages） |
+| 多端访问 | GitHub Pages（自动部署） | 仓库需 public |
 
 ## 部署步骤（一次性）
 
@@ -49,7 +50,7 @@ fetch_data.py（行情+财报+情绪）
 
 | Secret 名 | 必填 | 值 |
 |---|---|---|
-| `GEMINI_API_KEY` | ✅ | 你的 AI Studio API key |
+| `SILICONFLOW_API_KEY` | ✅ | 你的硅基流动 API key（[控制台](https://cloud.siliconflow.cn/account/ak)） |
 | `TELEGRAM_BOT_TOKEN` | 推荐 | 第 1 步拿到的 token |
 | `TELEGRAM_CHAT_ID` | 推荐 | 第 2 步拿到的数字 chat_id |
 
