@@ -296,6 +296,106 @@ def fetch_options(syms):
     return out
 
 
+def _num(value):
+    """Coerce a number to float; return None for absent/invalid values."""
+    try:
+        v = float(value)
+        return v if v == v and abs(v) != float("inf") else None
+    except (TypeError, ValueError):
+        return None
+
+
+def fetch_position_option_quote(position):
+    """Fetch the current mark for one exact option contract from yfinance."""
+    try:
+        import yfinance as yf
+        underlying = str(position["underlying"]).upper()
+        expiry = str(position["expiration_date"])
+        option_type = str(position["type"]).lower()
+        strike = float(position["strike"])
+        chain = yf.Ticker(underlying).option_chain(expiry)
+        frame = chain.calls if option_type == "call" else chain.puts
+        match = frame[(frame["strike"] - strike).abs() < 0.0001]
+        if match.empty:
+            return None
+        row = match.iloc[0]
+        bid = _num(row.get("bid"))
+        ask = _num(row.get("ask"))
+        last = _num(row.get("lastPrice"))
+        mark = (bid + ask) / 2 if bid is not None and ask is not None and bid > 0 and ask > 0 else last
+        if mark is None:
+            return None
+        return {"mark": round(mark, 4), "bid": bid, "ask": ask, "source": "yfinance option chain"}
+    except Exception as e:  # noqa: BLE001
+        print(f"[portfolio option] {position.get('underlying', '?')} 失败: {e}")
+        return None
+
+
+def enrich_portfolio_snapshot(snapshot, quotes):
+    """Price snapshot positions at workflow runtime and calculate P&L."""
+    if not snapshot.get("available"):
+        return snapshot
+    result = dict(snapshot)
+    equities = []
+    equity_value = 0.0
+    equity_complete = True
+    for raw in snapshot.get("equities", []):
+        item = dict(raw)
+        symbol = str(item.get("symbol", "")).upper()
+        quantity = _num(item.get("quantity")) or 0.0
+        average_cost = _num(item.get("average_cost"))
+        current_price = _num((quotes.get(f"us{symbol}") or {}).get("last"))
+        market_value = current_price * quantity if current_price is not None else None
+        cost_basis = average_cost * quantity if average_cost is not None else None
+        pnl = market_value - cost_basis if market_value is not None and cost_basis is not None else None
+        pnl_pct = pnl / cost_basis * 100 if pnl is not None and cost_basis else None
+        item.update({"current_price": current_price, "market_value": market_value,
+                     "cost_basis": cost_basis, "unrealized_pnl": pnl,
+                     "unrealized_pnl_pct": pnl_pct, "price_source": "westockdata daily close"})
+        equities.append(item)
+        if market_value is None:
+            equity_complete = False
+        else:
+            equity_value += market_value
+
+    options = []
+    options_value = 0.0
+    options_complete = True
+    for raw in snapshot.get("options", []):
+        item = dict(raw)
+        quote = fetch_position_option_quote(item)
+        quantity = _num(item.get("quantity")) or 0.0
+        average_price = _num(item.get("average_price"))
+        mark = quote.get("mark") if quote else None
+        market_value = mark * quantity * 100 if mark is not None else None
+        cost_basis = average_price * quantity if average_price is not None else None
+        pnl = market_value - cost_basis if market_value is not None and cost_basis is not None else None
+        pnl_pct = pnl / cost_basis * 100 if pnl is not None and cost_basis else None
+        item.update({"current_price": mark, "market_value": market_value,
+                     "cost_basis": cost_basis, "unrealized_pnl": pnl,
+                     "unrealized_pnl_pct": pnl_pct,
+                     "price_source": quote.get("source") if quote else None})
+        options.append(item)
+        if market_value is None:
+            options_complete = False
+        else:
+            options_value += market_value
+
+    cash = _num(snapshot.get("account", {}).get("cash")) or 0.0
+    complete = equity_complete and options_complete
+    result["equities"] = equities
+    result["options"] = options
+    result["valuation"] = {
+        "as_of": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "equity_value": round(equity_value, 2),
+        "options_value": round(options_value, 2),
+        "total_value": round(cash + equity_value + options_value, 2) if complete else None,
+        "complete": complete,
+        "price_sources": ["westockdata daily close", "yfinance option chain"],
+    }
+    return result
+
+
 def fetch_adv_dec():
     """自算 NYSE/NASDAQ 涨跌家数（60 只代表性头部股票近似）。
 
@@ -558,6 +658,7 @@ def main():
     # 4) 持仓期权 IV / P-C ratio（期权标的由配置文件单独声明）
     print("拉取持仓期权数据...")
     options_data = fetch_options(OPTION_UNDERLYINGS)
+    private_snapshot = enrich_portfolio_snapshot(private_snapshot, quotes)
 
     # 5) NYSE / NASDAQ 涨跌家数（市场宽度）
     print("拉取 NYSE/NASDAQ 涨跌家数...")

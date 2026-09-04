@@ -518,37 +518,45 @@ def private_portfolio_panel():
         return '<div class="note">未载入 Robinhood 仓位快照；公开行情看板仍可正常运行。</div>'
 
     account = PRIVATE_SNAPSHOT.get("account", {})
-    total = float(account.get("total_value") or 0)
+    valuation = PRIVATE_SNAPSHOT.get("valuation", {})
+    total_raw = valuation.get("total_value")
+    total = float(total_raw) if total_raw is not None else None
     cash = float(account.get("cash") or 0)
-    options_value = float(account.get("options_value") or 0)
-    equity_value = float(account.get("equity_value") or 0)
+    options_value = float(valuation.get("options_value") or 0)
+    equity_value = float(valuation.get("equity_value") or 0)
     currency = esc(PRIVATE_SNAPSHOT.get("currency", "USD"))
     def money(value):
         return f"{currency} {value:,.2f}"
     def pct(value):
         return f"{value / total * 100:.1f}%" if total else "—"
+    def maybe_money(value):
+        return money(float(value)) if value is not None else "—"
+    def maybe_pct(value):
+        return f"{float(value):+.1f}%" if value is not None else "—"
 
     equity_rows = "".join(
         f'<tr><td><b>{esc(item.get("symbol", "—"))}</b></td><td>{float(item.get("quantity") or 0):g}</td>'
-        f'<td>{money(float(item.get("average_cost") or 0))}</td></tr>'
+        f'<td>{money(float(item.get("average_cost") or 0))}</td><td>{maybe_money(item.get("current_price"))}</td>'
+        f'<td>{maybe_money(item.get("market_value"))}</td><td>{maybe_money(item.get("unrealized_pnl"))} · {maybe_pct(item.get("unrealized_pnl_pct"))}</td></tr>'
         for item in PRIVATE_SNAPSHOT.get("equities", [])
-    ) or '<tr><td colspan="3" class="muted">暂无股票仓位</td></tr>'
+    ) or '<tr><td colspan="6" class="muted">暂无股票仓位</td></tr>'
     option_rows = "".join(
         f'<tr><td><b>{esc(item.get("underlying", "—"))}</b> {esc(item.get("type", ""))} {float(item.get("strike") or 0):g}</td>'
         f'<td>{esc(item.get("expiration_date", "—"))}</td><td>{float(item.get("quantity") or 0):g}</td>'
-        f'<td>{money(float(item.get("average_price") or 0))}</td></tr>'
+        f'<td>{money(float(item.get("average_price") or 0))}</td><td>{maybe_money(item.get("current_price"))}</td>'
+        f'<td>{maybe_money(item.get("market_value"))}</td><td>{maybe_money(item.get("unrealized_pnl"))} · {maybe_pct(item.get("unrealized_pnl_pct"))}</td></tr>'
         for item in PRIVATE_SNAPSHOT.get("options", [])
-    ) or '<tr><td colspan="4" class="muted">暂无期权仓位</td></tr>'
+    ) or '<tr><td colspan="7" class="muted">暂无期权仓位</td></tr>'
     return f'''<div class="kv">
-      <div class="it"><div class="k">账户净值</div><div class="v">{money(total)}</div></div>
+      <div class="it"><div class="k">账户净值</div><div class="v">{maybe_money(total)}</div></div>
       <div class="it"><div class="k">现金 / 净值</div><div class="v">{money(cash)} · {pct(cash)}</div></div>
       <div class="it"><div class="k">股票 / 净值</div><div class="v">{money(equity_value)} · {pct(equity_value)}</div></div>
       <div class="it"><div class="k">期权 / 净值</div><div class="v">{money(options_value)} · {pct(options_value)}</div></div>
-    </div><div class="note">Robinhood 快照时间：{esc(PRIVATE_SNAPSHOT.get("as_of", "—"))}；公开展示由你授权。</div>
+    </div><div class="note">持仓更新时间：{esc(PRIVATE_SNAPSHOT.get("as_of", "—"))}；价格计算时间：{esc(valuation.get("as_of", "—"))}。价格由 GitHub Actions 每次运行重新拉取；若任一合约缺少报价，账户净值显示为 —；公开展示由你授权。</div>
     <h3 style="margin-top:16px;font-size:13.5px;color:var(--accent)">股票明细</h3>
-    <table><tr><th>代码</th><th>数量</th><th>平均成本</th></tr>{equity_rows}</table>
+    <table><tr><th>代码</th><th>数量</th><th>平均成本</th><th>现价</th><th>市值</th><th>浮盈亏</th></tr>{equity_rows}</table>
     <h3 style="margin-top:16px;font-size:13.5px;color:var(--accent)">期权明细</h3>
-    <table><tr><th>合约</th><th>到期</th><th>数量</th><th>平均成本/张</th></tr>{option_rows}</table>'''
+    <table><tr><th>合约</th><th>到期</th><th>数量</th><th>平均成本/张</th><th>现价</th><th>市值</th><th>浮盈亏</th></tr>{option_rows}</table>'''
 
 
 private_panel = private_portfolio_panel()
