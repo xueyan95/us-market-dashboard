@@ -1,7 +1,7 @@
 # 每日美股行情看板 · GitHub Actions 自托管版
 
 完全脱离 WorkBuddy：GitHub Actions 每天自动跑两次（收盘复盘 + 盘前速览），
-用 Gemini（AI Studio 免费 key）联网研判，生成单文件 HTML 看板，并推送摘要到飞书。
+用 Gemini（AI Studio 免费 key）联网研判，生成单文件 HTML 看板，并推送摘要到 Telegram。
 
 ## 流水线
 
@@ -9,7 +9,7 @@
 fetch_data.py（行情+财报+情绪）
     → ai_analysis.py（Gemini 联网研判）
         → gen_dashboard.py（生成 index.html）
-            → notify_feishu.py（飞书 webhook 推送）
+            → notify_telegram.py（Telegram 推送）
                 → deploy job → GitHub Pages（多端直接访问）
 ```
 
@@ -19,40 +19,81 @@ fetch_data.py（行情+财报+情绪）
 | 财报日历 | Nasdaq keyless API | 无 |
 | 指数 / VIX / 美债 / 黄金 / BTC | yfinance | 无 |
 | AI 研判 + 新闻 + FedWatch | Gemini 2.5 Flash（Google Search grounding） | **GEMINI_API_KEY** |
-| 飞书推送 | 飞书群自定义机器人 webhook | **FEISHU_WEBHOOK**（可空，缺则静默跳过） |
+| Telegram 推送 | Telegram Bot API | **TELEGRAM_BOT_TOKEN** + **TELEGRAM_CHAT_ID**（可空，缺则静默跳过） |
 | 多端访问 | GitHub Pages（自动部署） | 无（仓库需开放 Pages） |
 
 ## 部署步骤（一次性）
 
-### 1. 配置 Secrets
+### 1. 创建 Telegram 机器人
+
+1. Telegram 搜索 **`@BotFather`**，开聊
+2. 发送 `/newbot`，按提示设置：
+   - `name`：随便取（如「每日美股看板」）
+   - `username`：必须以 `bot` 结尾（如 `us_dash_bot`），全网唯一
+3. BotFather 回复里复制 **token**（形如 `7123456789:AAHxxxxxxxxxxxxxxxxxxxxxxxxxx`）
+
+### 2. 拿到你的 chat_id
+
+1. Telegram 搜索你刚创建的 bot（用 username 搜），点 **Start** 发任意一条消息（如 `/start`）
+2. 浏览器访问（把 `<TOKEN>` 替换成上一步的 token）：
+   ```
+   https://api.telegram.org/bot<TOKEN>/getUpdates
+   ```
+3. 返回 JSON 里找 `"chat":{"id": 123456789, ...}` —— 这个 **数字** 就是 `chat_id`
+   - 个人对话就是你的 user id
+   - 群组是负数（要先 `@你的bot` 加入群，再发一条消息才会出现）
+
+### 3. 配置 GitHub Secrets
+
 仓库 → Settings → Secrets and variables → Actions → New repository secret：
 
 | Secret 名 | 必填 | 值 |
 |---|---|---|
 | `GEMINI_API_KEY` | ✅ | 你的 AI Studio API key |
-| `FEISHU_WEBHOOK` | 可选 | 飞书群机器人 webhook URL（见下） |
+| `TELEGRAM_BOT_TOKEN` | 推荐 | 第 1 步拿到的 token |
+| `TELEGRAM_CHAT_ID` | 推荐 | 第 2 步拿到的数字 chat_id |
 
-### 2. 启用 GitHub Pages（一次性）
+配完后可手动测试：Actions 页 → Daily US Market Dashboard → Run workflow。
+
+### 4. 启用 GitHub Pages（一次性，可选）
+
 仓库 → Settings → Pages → Source → 选择 **「GitHub Actions」** → 保存。
 
-> 说明：私有仓库的 GitHub Pages 仅 GitHub Pro 及以上可用；免费账号需先把仓库设为 Public（代码 + 数据均为公开信息，无敏感凭据）。
-> 启用后每次运行会自动发布到 `https://<owner>.github.io/us-market-dashboard/`，手机/电脑/平板直接打开，无需登录。
+> 说明：私有仓库的 GitHub Pages 仅 GitHub Pro 及以上可用；免费账号需先把仓库设为 Public。
+> 启用后每次运行会自动发布到 `https://<owner>.github.io/us-market-dashboard/`，
+> 手机/电脑/平板直接打开，无需登录。
 
-### 3. 获取飞书 webhook（可选）
-1. 打开飞书，进入想接收推送的群 → 群设置 → 群机器人 → 添加「自定义机器人」
-2. 复制 webhook 地址（形如 `https://open.feishu.cn/open-apis/bot/v2/hook/xxxxxxxx`）
-3. 填入上面的 `FEISHU_WEBHOOK`
+### 5. 触发方式
 
-> 说明：WorkBuddy 里的飞书连接器用的是会过期的 OAuth token，无法移植到 GitHub。
-> 这里改用群机器人 webhook，一个 URL 永久有效、零维护。
-
-### 4. 触发方式
-- **手动**：Actions 页 → 「Daily US Market Dashboard」→ Run workflow
+- **手动**：Actions 页 → Daily US Market Dashboard → Run workflow
 - **自动**：每天 2 次（北京时间 08:00 收盘复盘、21:30 盘前速览）
 
-### 5. 查看看板（任选其一）
+### 6. 查看看板（任选其一）
+
 - **GitHub Pages**：直接访问 `https://<owner>.github.io/<repo>/`（推荐，无需登录）
 - **Artifacts**：每次运行后在 Actions 的 run 详情底部 → Artifacts → 下载 `us-market-dashboard` → 解压得 `index.html`（单文件、零外链、手机/电脑自适应、支持白天/夜间/跟随系统三态主题）
+
+## Telegram 推送效果预览
+
+```
+📊 美股 2026-09-03 收盘复盘（自动化）
+
+【一句话结论】
+美股今日普涨，主要受美联储官员偏鸽派言论导致美债收益率回落，
+以及 AI 领域重磅利好消息提振。英伟达收购 Hugging Face，OpenAI 发布
+GPT-6 Astra，博通上调 AI 业务指引，共同推动科技股和 AI 概念股走强…
+
+【三大指数】
+标普 7,748 (+1.06%) · 纳指 26,584 (+1.40%) · 道指 53,686 (+1.18%)
+
+【持仓 8 只】
+LAZR 41.09 (-1.3%) · INTC 91.67 (+1.8%) · APP 313.58 (-1.71%) · 
+BE 235.55 (+8.41%) · COHR 264.41 (-1.57%) · WOLF 26.84 (+0.71%) · 
+NBIS 210.63 (+3.2%) · NOW 145.59 (+6.49%)
+
+【FedWatch】加息 ≈50% / 维持 ≈50% / 降息 <1%
+【近期关注】明日（9月4日）将公布美国8月非农就业…
+```
 
 ## 修改持仓 / 观察股
 
