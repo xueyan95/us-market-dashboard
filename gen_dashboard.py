@@ -180,8 +180,9 @@ def heat_matrix():
 
 
 # ---------------- 各模块内容 ----------------
-# 核心指标速览：优先用 yfinance 的真实指数点位（^GSPC/^IXIC/^DJI/^RUT），失败则回退 ETF
-IDX_MAP = [("标普500 S&P 500", "spx", "usSPY"), ("纳斯达克综合", "ndx", "usQQQ"),
+# 核心指标速览：标普/纳指/道指/罗素 + 美元指数 DXY
+# 纳指优先取 QQQ ETF 价格（贴近交易视角），失败 fallback ^IXIC，再 fallback ETF
+IDX_MAP = [("标普500 S&P 500", "spx", "usSPY"), ("纳指 QQQ ETF", "qqq", "usQQQ"),
            ("道琼斯工业", "dji", "usDIA"), ("罗素2000", "rut", "usIWM")]
 idx_html = ""
 for n, yk, etf in IDX_MAP:
@@ -198,9 +199,89 @@ for n, yk, etf in IDX_MAP:
         idx_html += (f'<div class="idx"><div class="l">{n}（ETF近似）</div><div class="n">{p:,.2f}</div>'
                      f'<div class="c {"up" if (c or 0) > 0 else "down"}">{arrow(c)} {chg_str(c)}</div></div>')
 
+# DXY 美元指数（独立块，强调）
+v = YF.get("dxy", {})
+if v.get("last") is not None:
+    c = v.get("chg_pct")
+    idx_html += (f'<div class="idx dxy"><div class="l">美元指数 DXY</div><div class="n">{v["last"]:.2f}</div>'
+                 f'<div class="c {"up" if (c or 0) > 0 else "down"}">{arrow(c)} {chg_str(c)}</div></div>')
+else:
+    # yfinance 拿不到时显示空壳，避免布局塌陷
+    idx_html += '<div class="idx dxy off"><div class="l">美元指数 DXY</div><div class="n">—</div><div class="c">—</div></div>'
+
+# 涨跌家数（NYSE / NASDAQ）—— A/D ratio > 1 看涨、< 1 看跌
+adv_dec = M.get("adv_dec", {})
+ad_html = ""
+for exch_label, k in [("NYSE", "nyse"), ("NASDAQ", "nasdaq")]:
+    ad = adv_dec.get(k) or {}
+    if ad and ad.get("total", 0) > 0:
+        ratio = ad.get("ad_ratio")
+        cls = ""
+        if ratio is not None:
+            cls = "bull" if ratio > 1 else ("bear" if ratio < 1 else "")
+        adv_n, dec_n, unc_n = ad.get("adv", 0), ad.get("dec", 0), ad.get("unc", 0)
+        ad_html += (f'<div class="ad-cell"><div class="ex">{exch_label} 涨跌家数</div>'
+                    f'<div class="ratio {cls}">{ratio if ratio is not None else "—"}</div>'
+                    f'<div class="num">↑ {adv_n} / ↓ {dec_n} / = {unc_n}</div></div>')
+    else:
+        ad_html += (f'<div class="ad-cell"><div class="ex">{exch_label}</div>'
+                    f'<div class="ratio">—</div><div class="num">暂无数据</div></div>')
+
+# 持仓期权 IV / P-C ratio（核心 8 只）
+opt_data = M.get("options", {})
+opt_html = ""
+for s in HOLDINGS:
+    sym = HOLD_NAME[s]
+    d = opt_data.get(sym) or {}
+    iv = d.get("iv_pct")
+    pc_oi = d.get("pc_oi")
+    call_vol = d.get("call_vol", 0)
+    put_vol = d.get("put_vol", 0)
+    exp = d.get("expiry", "")
+    # IV 解读：高 (>50%) / 中 (30-50%) / 低 (<30%)
+    iv_text = "—"
+    iv_cls = ""
+    if iv is not None:
+        if iv > 50:
+            iv_text, iv_cls = f"{iv}% 高", "iv-high"
+        elif iv < 30:
+            iv_text, iv_cls = f"{iv}% 低", "iv-low"
+        else:
+            iv_text = f"{iv}% 中"
+    # P/C 解读（用 OI）：< 0.7 偏看涨、> 1.0 偏看跌
+    pc_text, pc_cls = "—", ""
+    if pc_oi is not None:
+        if pc_oi < 0.7:
+            pc_text, pc_cls = f"{pc_oi} 偏看涨", "pc-bull"
+        elif pc_oi > 1.0:
+            pc_text, pc_cls = f"{pc_oi} 偏看跌", "pc-bear"
+        else:
+            pc_text = f"{pc_oi} 中性"
+    exp_label = exp[5:].replace("-", "/") if exp else "—"
+    opt_html += (f'<div class="opt-row"><b>{sym}</b>'
+                 f'<span class="iv {iv_cls}">{iv_text}</span>'
+                 f'<span class="pc {pc_cls}">{pc_text}</span>'
+                 f'<span class="vol">C {call_vol:,} / P {put_vol:,}</span>'
+                 f'<span class="exp">到期 {exp_label}</span></div>')
+
 COMBINED = [("半导体 SMH", "usSMH"), ("科技 XLK", "usXLK"), ("软件 IGV", "usIGV"),
             ("金融 XLF", "usXLF"), ("能源 XLE", "usXLE"), ("黄金 GLD", "usGLD"),
             ("小盘 IWM", "usIWM"), ("标普 SPY", "usSPY"), ("纳指 QQQ", "usQQQ"), ("道指 DIA", "usDIA")]
+
+
+def rsi_label(r):
+    """7 档 RSI 信号标签。"""
+    if r is None:
+        return ""
+    if r >= 80: return "极强超买"
+    if r >= 70: return "超买"
+    if r >= 60: return "偏强"
+    if r >= 40: return "中性"
+    if r >= 30: return "偏弱"
+    if r >= 20: return "超卖"
+    return "极弱超卖"
+
+
 comb_rows = ""
 for n, s in COMBINED:
     p, c = get(s)
@@ -209,9 +290,12 @@ for n, s in COMBINED:
     chg_cls = "up" if (c or 0) > 0 else ("down" if (c or 0) < 0 else "flat")
     rc = "up" if (r is not None and r <= 30) else ("down" if (r is not None and r >= 70) else "flat")
     bc = "up" if (b20 is not None and b20 > 0) else ("down" if (b20 is not None and b20 < 0) else "flat")
+    label_txt = rsi_label(r)
+    # 数字 + 标签：标签放在数字下方（小字），分两行
+    r_html = f'{r}<small class="rsi-lbl {rc}">{label_txt}</small>' if r is not None else "—"
     comb_rows += (f'<tr><td>{n}</td><td>{fmt_price(s)}</td>'
                   f'<td class="{chg_cls}">{arrow(c)} {chg_str(c)}</td>'
-                  f'<td class="{rc}">{r if r is not None else "—"}</td>'
+                  f'<td class="{rc}">{r_html}</td>'
                   f'<td class="{bc}">{"+" if (b20 or 0) > 0 else ""}{b20 if b20 is not None else "—"}%</td></tr>')
 
 # 宏观 kv
@@ -241,6 +325,20 @@ earnings = M.get("earnings", {})
 ear_fwd_rows = ""
 today = datetime.date.today().isoformat()
 seen = set()
+
+
+def countdown_label(d_iso):
+    """距离今天 N 天：今天 / 明天 / T+3 / 已发布。"""
+    delta = (datetime.date.fromisoformat(d_iso) - datetime.date.fromisoformat(today)).days
+    if delta < 0:
+        return "已发布"
+    if delta == 0:
+        return "今天"
+    if delta == 1:
+        return "明天"
+    return f"T+{delta}"
+
+
 for offset in range(6):
     d = (datetime.date.today() + datetime.timedelta(days=offset)).isoformat()
     for r in earnings.get(d, []):
@@ -249,11 +347,13 @@ for offset in range(6):
             seen.add(sym)
             t = r.get("time", "未定")
             dlabel = "今天" if d == today else d[5:].replace("-", "/")
+            cd = countdown_label(d)
             ear_fwd_rows += (f'<tr><td><b>{sym}</b></td><td>{r.get("name","")}</td>'
-                             f'<td>{dlabel} {t}</td><td>{r.get("epsForecast","")}</td>'
+                             f'<td>{dlabel} {t}</td><td class="cd-{cd.replace("+","-").replace("天","day")}"><b>{cd}</b></td>'
+                             f'<td>{r.get("epsForecast","")}</td>'
                              f'<td>{r.get("epsLastYear","")}</td></tr>')
 if not ear_fwd_rows:
-    ear_fwd_rows = '<tr><td colspan="5" style="text-align:center;color:var(--sub);padding:12px">近 6 日无持仓/关注池财报</td></tr>'
+    ear_fwd_rows = '<tr><td colspan="6" style="text-align:center;color:var(--sub);padding:12px">近 6 日无持仓/关注池财报</td></tr>'
 
 # AI 研判
 concl = A.get("conclusion", "（暂无研判）")
@@ -307,17 +407,42 @@ th{color:var(--sub);font-weight:600;font-size:11.5px}
 th:first-child,td:first-child{text-align:left}
 tr:last-child td{border-bottom:none}
 .up{color:var(--red)}.down{color:var(--green)}.flat{color:var(--sub)}
-.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
 .idx{background:var(--card2);border-radius:12px;padding:14px;text-align:center}
 .idx .n{font-size:20px;font-weight:700}
 .idx .l{font-size:12px;color:var(--sub);margin-bottom:4px}
 .idx .c{font-size:13px;font-weight:600}
+.idx.dxy{border:1px solid var(--gold);background:linear-gradient(135deg,rgba(246,195,77,.08),var(--card2))}
+.idx.dxy .l{color:var(--gold);font-weight:600}
+.idx.dxy.off{opacity:.4}
 .kv{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
 .kv .it{background:var(--card2);border-radius:12px;padding:12px}
 .kv .k{font-size:11.5px;color:var(--sub)}
 .kv .v{font-size:17px;font-weight:700;margin-top:3px}
-.news li{margin:7px 0;font-size:12.5px;color:var(--txt)}
-.news li b{color:var(--txt)}
+.news{list-style:none;padding:0;margin:0}
+.news li{margin:8px 0;font-size:12.5px;color:var(--txt);padding:10px 14px;background:var(--card2);border-radius:8px;border-left:3px solid var(--accent);line-height:1.5}
+.news li b{color:var(--txt);display:block;margin-bottom:2px;font-size:13px;font-weight:700}
+.news li .src{display:inline-block;color:var(--sub);font-size:11px;margin-top:4px;padding:1px 6px;background:var(--card);border-radius:6px}
+.rsi-lbl{display:block;font-size:10px;margin-top:3px;font-weight:700;letter-spacing:.3px}
+.rsi-lbl:empty{display:none}
+td .rsi-lbl{color:inherit}
+.ad-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:10px}
+.ad-cell{background:var(--card2);border-radius:12px;padding:14px;text-align:center;border:1px solid var(--line)}
+.ad-cell .ex{color:var(--sub);font-size:12px;font-weight:600;margin-bottom:6px}
+.ad-cell .ratio{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;margin:4px 0}
+.ad-cell .ratio.bull{color:var(--red)}
+.ad-cell .ratio.bear{color:var(--green)}
+.ad-cell .num{color:var(--sub);font-size:11.5px}
+.opt-row{display:grid;grid-template-columns:60px 80px 130px 1fr 110px;gap:8px;align-items:center;padding:9px 12px;background:var(--card2);border-radius:8px;margin:5px 0;font-size:12.5px;border:1px solid var(--line)}
+.opt-row b{font-weight:700}
+.opt-row .iv{font-weight:700;font-variant-numeric:tabular-nums}
+.opt-row .pc{font-variant-numeric:tabular-nums;font-size:12px}
+.opt-row .pc-bull{color:var(--green)}
+.opt-row .pc-bear{color:var(--red)}
+.opt-row .vol{color:var(--sub);font-size:11px;font-variant-numeric:tabular-nums}
+.opt-row .exp{color:var(--sub);font-size:11px;text-align:right}
+.opt-row .iv-high{color:var(--gold)}
+.opt-row .iv-low{color:var(--accent)}
 .concl{background:var(--card2);border-left:3px solid var(--accent);border-radius:8px;padding:12px 14px;font-size:13px;margin-bottom:12px}
 .q4{font-size:12.5px;color:var(--txt)}
 .q4 div{margin:5px 0}
@@ -350,7 +475,7 @@ tr:last-child td{border-bottom:none}
 .foot{color:var(--sub);font-size:11.5px;text-align:center;margin-top:26px;padding:0 14px}
 .src{color:var(--sub);font-size:11px}
 @media(max-width:640px){
- .grid3{grid-template-columns:1fr}
+ .grid4{grid-template-columns:repeat(2,1fr)}
  .kv{grid-template-columns:repeat(2,1fr)}
  th,td{font-size:11.5px;padding:6px 5px}
  .butter .row{grid-template-columns:54px 1fr 90px}
@@ -396,8 +521,10 @@ body = f"""
 
 <div class="card">
   <h2>② 核心指标速览 <span class="tag">{D_LATEST} 收盘</span></h2>
-  <div class="grid3">{idx_html}</div>
-  <div class="note">三大指数 + 罗素2000 由 ETF（SPY/QQQ/DIA/IWM）日K近似，来源 westockdata，{D_LATEST} 收盘。</div>
+  <div class="grid4">{idx_html}</div>
+  <h2 style="font-size:13.5px;margin-top:16px">市场宽度 · 涨跌家数 <span class="tag">A/D ratio</span></h2>
+  <div class="ad-grid">{ad_html}</div>
+  <div class="note">标普/纳指/道指/罗素 + DXY：来源 yfinance（纳指优先用 QQQ ETF 价格）；涨跌家数：StockAnalysis 实时 NYSE/NASDAQ 全量股票分桶计算，{D_LATEST}。</div>
 </div>
 
 <div class="card">
@@ -454,11 +581,17 @@ body = f"""
   <h2>⑧ 事件日历 <span class="tag">财报 + 前瞻</span></h2>
   <div class="sec-desc">近 6 日持仓/关注池财报（Nasdaq keyless 接口）。</div>
   <table>
-    <tr><th>代码</th><th>公司</th><th>日期/时间</th><th>EPS预测</th><th>去年同期</th></tr>
+    <tr><th>代码</th><th>公司</th><th>日期/时间</th><th>距离</th><th>EPS预测</th><th>去年同期</th></tr>
     {ear_fwd_rows}
   </table>
   <div class="note" style="margin-top:10px">近期宏观节点：{tomorrow or '（暂无）'}</div>
   <div class="note">持仓预警：{hold_alert or '（暂无）'}</div>
+</div>
+
+<div class="card">
+  <h2>⑨ 持仓期权信号 <span class="tag">IV / P-C ratio · 8 只</span></h2>
+  <div class="sec-desc">隐含波动率 (IV) 反映市场对后续波动的预期；P/C ratio（用 OI 计算）> 1 偏看跌，&lt; 0.7 偏看涨。来源：yfinance option_chain，取 14-45 DTE 到期日。失败/无数据项显示 —。</div>
+  {opt_html or '<div class="note">暂无期权数据</div>'}
 </div>
 
 <div class="foot">{DISCLAIMER}</div>

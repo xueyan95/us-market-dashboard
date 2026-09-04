@@ -73,10 +73,11 @@ def build_message():
         "【一句话结论】",
         esc(a.get("conclusion", "（暂无）")),
         "",
-        "【三大指数】",
+        "【三大指数 + DXY】",
         f"{esc(idx_html(yf, q, 'spx', 'usSPY', '标普 ETF'))} · "
-        f"{esc(idx_html(yf, q, 'ndx', 'usQQQ', '纳指 ETF'))} · "
-        f"{esc(idx_html(yf, q, 'dji', 'usDIA', '道指 ETF'))}",
+        f"{esc(idx_html(yf, q, 'qqq', 'usQQQ', '纳指 ETF'))} · "
+        f"{esc(idx_html(yf, q, 'dji', 'usDIA', '道指 ETF'))} · "
+        f"{esc(idx_html(yf, q, 'dxy', None, 'DXY'))}",
         "",
     ]
 

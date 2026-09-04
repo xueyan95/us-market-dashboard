@@ -97,7 +97,8 @@ def build_prompt(m, news):
     yf_data = m.get("yf", {})
     macro_lines = []
     for k, label in [("tnx", "10Y美债"), ("fvx", "5Y美债"), ("tyx", "30Y美债"),
-                     ("vix", "VIX"), ("gold", "黄金"), ("wti", "WTI原油"), ("btc", "BTC")]:
+                     ("vix", "VIX"), ("dxy", "美元指数DXY"),
+                     ("gold", "黄金"), ("wti", "WTI原油"), ("btc", "BTC")]:
         v = yf_data.get(k, {})
         if v.get("last") is not None:
             c = v.get("chg_pct") or 0

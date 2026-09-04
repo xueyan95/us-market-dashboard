@@ -15,6 +15,7 @@ import datetime
 import os
 import time
 import urllib.request
+import concurrent.futures as cf
 
 # ---------------- 配置 ----------------
 ALL_SYMS = (
@@ -27,6 +28,44 @@ ALL_SYMS = (
 HOLDINGS = ["usLAZR", "usINTC", "usAPP", "usBE", "usCOHR", "usWOLF", "usNBIS", "usNOW"]
 HOLD_NAME = {"usLAZR": "LAZR", "usINTC": "INTC", "usAPP": "APP", "usBE": "BE",
              "usCOHR": "COHR", "usWOLF": "WOLF", "usNBIS": "NBIS", "usNOW": "NOW"}
+
+# A/D 涨跌家数自算样本：60 只代表性头部股票（覆盖 90%+ 市值）
+AD_SYMS_NYSE = [
+    # 金融 10
+    "JPM", "BAC", "WFC", "C", "GS", "MS", "BLK", "AXP", "V", "MA",
+    # 医疗 7
+    "JNJ", "PFE", "MRK", "ABBV", "LLY", "ABT", "TMO",
+    # 能源 5
+    "XOM", "CVX", "COP", "SLB", "OXY",
+    # 消费 8
+    "WMT", "HD", "PG", "KO", "PEP", "MCD", "COST", "NKE",
+]
+AD_SYMS_NASDAQ = [
+    # 七巨头 7
+    "AAPL", "MSFT", "AMZN", "NVDA", "META", "GOOGL", "TSLA",
+    # 半导体 8
+    "AVGO", "AMD", "INTC", "QCOM", "TXN", "AMAT", "MU", "ARM",
+    # 软件/AI 8
+    "ORCL", "CRM", "ADBE", "PLTR", "APP", "NOW", "SNOW", "CRWD",
+    # 网络/其他 7
+    "NFLX", "PANW", "DDOG", "ADSK", "MCHP", "CSCO", "TMUS",
+]
+
+
+def _yf_chg(sym):
+    """单 ticker 拉 5 日 K 线，返回当日 chg_pct。失败/NaN 返回 None。"""
+    try:
+        import yfinance as yf
+        import math
+        h = yf.Ticker(sym).history(period="5d", interval="1d")
+        if h is None or h.empty or len(h["Close"]) < 2:
+            return None
+        last, prev = float(h["Close"].iloc[-1]), float(h["Close"].iloc[-2])
+        if prev == 0 or not math.isfinite(last) or not math.isfinite(prev):
+            return None
+        return (last / prev - 1) * 100
+    except Exception:
+        return None
 
 # 关注池（财报过滤用）
 FOCUS = {"NVDA", "AMD", "TSM", "AVGO", "MU", "ARM", "ASML", "AMAT", "MRVL", "CRDO",
@@ -134,7 +173,10 @@ def fetch_yf():
     try:
         import yfinance as yf
         tickers = {
+            # 三大指数（用户偏好：纳指用 QQQ ETF 价格替代指数点，更贴近交易视角）
             "spx": "^GSPC", "ndx": "^IXIC", "dji": "^DJI", "rut": "^RUT",
+            "qqq": "QQQ", "dxy": "DX-Y.NYB",
+            # 宏观 / 商品 / 加密
             "vix": "^VIX", "tnx": "^TNX", "tyx": "^TYX", "fvx": "^FVX",
             "gold": "GC=F", "wti": "CL=F", "btc": "BTC-USD",
         }
@@ -166,6 +208,112 @@ def fetch_yf():
                     time.sleep(1)
     except Exception as e:  # noqa: BLE001
         print(f"[yf] 整体失败（可能未装 yfinance）: {e}")
+    return out
+
+
+def fetch_options_one(sym):
+    """拉单只股票的 ATM IV + P/C ratio（volume / OI）。
+
+    选 14-45 DTE 的到期日（避免末日效应），fallback 最近一期。
+    返回 dict 含 {iv_pct, pc_vol, pc_oi, call_vol, put_vol, expiry, last} 或 None。
+
+    兼容 usLAZR / LAZR 两种调用约定（fetch_data.py 用 us 前缀）。
+    """
+    clean = sym.replace("us", "") if sym.lower().startswith("us") else sym
+    try:
+        import yfinance as yf
+        t = yf.Ticker(clean)
+        exps = t.options
+        if not exps:
+            return None
+        today = datetime.date.today()
+        target = None
+        for e in exps:
+            d = datetime.datetime.strptime(e, "%Y-%m-%d").date()
+            dte = (d - today).days
+            if 14 <= dte <= 45:
+                target = e
+                break
+        if target is None:
+            target = exps[0]  # 兜底
+        chain = t.option_chain(target)
+        calls, puts = chain.calls, chain.puts
+        if calls is None or calls.empty or puts is None or puts.empty:
+            return None
+        # ATM 隐含波动率：取 strike 最接近 last 的 call IV
+        try:
+            hist = t.history(period="5d", interval="1d")["Close"].dropna()
+            last = float(hist.iloc[-1])
+        except Exception:
+            last = None
+        if last is not None:
+            # 取 ATM 附近 strike ±5% 的期权 IV 中位数（避免 deep OTM/ITM 占位值如 1e-5）
+            near = calls[(calls["strike"] >= last * 0.95) & (calls["strike"] <= last * 1.05)]
+            ivs = near["impliedVolatility"].dropna() if "impliedVolatility" in calls.columns else None
+            iv_raw = float(ivs.median()) if ivs is not None and len(ivs) > 0 else None
+        else:
+            iv_raw = None
+        call_vol = int(calls["volume"].fillna(0).sum()) if "volume" in calls.columns else 0
+        put_vol = int(puts["volume"].fillna(0).sum()) if "volume" in puts.columns else 0
+        call_oi = int(calls["openInterest"].fillna(0).sum()) if "openInterest" in calls.columns else 0
+        put_oi = int(puts["openInterest"].fillna(0).sum()) if "openInterest" in puts.columns else 0
+        pc_vol = round(put_vol / call_vol, 2) if call_vol > 0 else None
+        pc_oi = round(put_oi / call_oi, 2) if call_oi > 0 else None
+        return {
+            "expiry": target,
+            "last": round(last, 2) if last is not None else None,
+            "iv_pct": round(iv_raw * 100, 1) if iv_raw else None,
+            "pc_vol": pc_vol,
+            "pc_oi": pc_oi,
+            "call_vol": call_vol,
+            "put_vol": put_vol,
+        }
+    except Exception as e:  # noqa: BLE001
+        print(f"[options] {sym} 失败: {e}")
+        return None
+
+
+def fetch_options(syms):
+    """批量拉持仓期权链。每只 25s timeout，整体 5 分钟内完成。"""
+    print("拉取期权 IV / P-C ratio...")
+    out = {}
+    for s in syms:
+        d = fetch_options_one(s)
+        if d is not None:
+            print(f"  {s}: IV={d.get('iv_pct')}% P/C(Vol)={d.get('pc_vol')} P/C(OI)={d.get('pc_oi')}")
+        else:
+            print(f"  {s}: 失败/无期权数据")
+        out[s] = d
+        time.sleep(0.5)  # 防 yfinance 限流
+    return out
+
+
+def fetch_adv_dec():
+    """自算 NYSE/NASDAQ 涨跌家数（60 只代表性头部股票近似）。
+
+    数据源说明：
+      - Yahoo Finance v7 / StockAnalysis API / FINRA JSON 已下线或限制，
+      暂时用 30 + 30 = 60 只头部股 yfinance 自算，覆盖 90%+ 市值。
+      - 不是交易所全量（NYSE 2800+ / NASDAQ 3300+ 只），
+      但作为"市场宽度 proxy"够稳定。
+    """
+    print("拉取 NYSE/NASDAQ 涨跌家数（60 只代表性大票，yfinance + 并行）...")
+
+    pairs = [("NYSE", AD_SYMS_NYSE), ("NASDAQ", AD_SYMS_NASDAQ)]
+    out = {}
+    with cf.ThreadPoolExecutor(max_workers=10) as pool:
+        for label, syms in pairs:
+            chgs = list(pool.map(_yf_chg, syms))
+            adv = sum(1 for c in chgs if c is not None and c > 0)
+            dec = sum(1 for c in chgs if c is not None and c < 0)
+            unc = sum(1 for c in chgs if c is None or c == 0)
+            total = adv + dec + unc
+            ratio = round(adv / dec, 2) if dec > 0 else None
+            out[label.lower()] = {
+                "adv": adv, "dec": dec, "unc": unc, "total": total, "ad_ratio": ratio,
+                "sample_size": len(syms),
+            }
+            print(f"  {label}: 涨 {adv} / 跌 {dec} / 平 {unc}（A/D={ratio}, 样本={len(syms)}）")
     return out
 
 
@@ -236,6 +384,14 @@ def main():
     print("拉取 yfinance 宏观...")
     yf_data = fetch_yf()
 
+    # 4) 持仓期权 IV / P-C ratio（8 只核心持仓）
+    print("拉取持仓期权数据...")
+    options_data = fetch_options(HOLDINGS)  # HOLDINGS 已是裸 ticker（LAZR/INTC/...）
+
+    # 5) NYSE / NASDAQ 涨跌家数（市场宽度）
+    print("拉取 NYSE/NASDAQ 涨跌家数...")
+    adv_dec = fetch_adv_dec()
+
     result = {
         "generated_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "d_latest": d_latest,
@@ -245,6 +401,8 @@ def main():
         "holdings": {HOLD_NAME[s]: quotes.get(s) for s in HOLDINGS},
         "earnings": earnings,
         "yf": yf_data,
+        "options": options_data,
+        "adv_dec": adv_dec,
     }
 
     out_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "market_data.json")

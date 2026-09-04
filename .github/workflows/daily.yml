@@ -2,11 +2,14 @@ name: Daily US Market Dashboard
 
 on:
   schedule:
-    # UTC 时间（北京时间 = UTC + 8）
-    # 每天 00:00 UTC = 北京时间 08:00 —— 美股收盘复盘（主）
+    # 3 班轮：收盘复盘（08:00 CST）+ 盘前速览（21:00 夏令时 / 22:00 冬令时）
+    # DST 处理由 should_notify.py 在 Python 层动态判定
+    # 08:00 CST = 00:00 UTC — 收盘复盘（每天）
     - cron: '0 0 * * *'
-    # 每天 13:30 UTC = 北京时间 21:30 —— 美股盘前速览
-    - cron: '30 13 * * *'
+    # 21:00 CST = 13:00 UTC — 盘前（夏令时 3月-11月初）
+    - cron: '0 13 * * *'
+    # 22:00 CST = 14:30 UTC — 盘前（冬令时 11月初-3月初）
+    - cron: '30 14 * * *'
   workflow_dispatch: {}
 
 permissions:
@@ -15,6 +18,8 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      slot_json: ${{ steps.slot.outputs.slot_json }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -41,21 +46,31 @@ jobs:
       - name: Fetch market data
         run: python fetch_data.py
 
+      - name: Decide notify slot (DST + trading day check)
+        id: slot
+        env:
+          SLOT_UTC: ${{ github.event.schedule }}
+        run: python should_notify.py
+
       - name: AI analysis (SiliconFlow)
+        if: ${{ fromJSON(steps.slot.outputs.slot_json).slot != 'skip' }}
         env:
           SILICONFLOW_API_KEY: ${{ secrets.SILICONFLOW_API_KEY }}
         run: python ai_analysis.py
 
       - name: Generate dashboard
+        if: ${{ fromJSON(steps.slot.outputs.slot_json).slot != 'skip' }}
         run: python gen_dashboard.py
 
       - name: Notify Telegram
+        if: ${{ fromJSON(steps.slot.outputs.slot_json).slot != 'skip' }}
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python notify_telegram.py
 
       - name: Upload dashboard artifact
+        if: ${{ fromJSON(steps.slot.outputs.slot_json).slot != 'skip' }}
         uses: actions/upload-artifact@v4
         with:
           name: us-market-dashboard
@@ -72,7 +87,9 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     # Pages 未启用时优雅降级——不阻塞 build 产物，提示用户去 Settings → Pages 启用
+    # 节假日 slot=skip 时也不部署（无新产物）
     continue-on-error: true
+    if: ${{ fromJSON(needs.build.outputs.slot_json).slot != 'skip' }}
     steps:
       - name: Setup Pages
         uses: actions/configure-pages@v5
@@ -91,4 +108,3 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-
