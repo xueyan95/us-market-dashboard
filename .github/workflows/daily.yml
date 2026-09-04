@@ -27,7 +27,13 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
+
+      - name: Cache npx package (westock-data-clawhub)
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm/_npx
+          key: npx-westock-1.0.4
 
       - name: Install Python deps
         run: pip install yfinance
