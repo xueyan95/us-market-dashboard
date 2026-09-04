@@ -70,6 +70,8 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+    # Pages 未启用时优雅降级——不阻塞 build 产物，提示用户去 Settings → Pages 启用
+    continue-on-error: true
     steps:
       - name: Setup Pages
         uses: actions/configure-pages@v5
