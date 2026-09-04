@@ -104,6 +104,14 @@ NBIS 210.63 (+3.2%) · NOW 145.59 (+6.49%)
 
 该文件刻意不保存数量、成本价、账户余额或券商凭据，可安全用于公开仓库。更新一次后，行情抓取、AI 研判、HTML 看板和 Telegram 推送会同时使用新名单。
 
+### Robinhood 仓位快照（公开展示模式）
+
+看板不直接保存或使用 Robinhood 登录信息。它只读取一个运行时快照：`portfolio_snapshot.json`（已被 `.gitignore` 排除）。格式见 `portfolio_snapshot.example.json`。
+
+将快照 JSON 压成单行并 Base64 编码后，保存为仓库 Secret：`PORTFOLIO_SNAPSHOT_B64`。工作流会在运行时还原它，并将账户金额、成本和持仓/期权明细写入看板。
+
+> 你已选择公开展示这些数据：任何能访问 GitHub Pages 或看板构建产物的人都可能看到它们。该 Secret 是静态快照，不能自行从 Robinhood 更新。自动更新仍需一个受控的本地同步器或私有 API。绝不要将 Robinhood 用户名、密码、MFA、Cookie 或连接器令牌放进 GitHub Secrets。
+
 编辑 `fetch_data.py` 顶部：
 - `ALL_SYMS` —— 拉取行情的完整标的池（新持仓需同时确保在此列表）
 - `FOCUS` —— 财报日历过滤池

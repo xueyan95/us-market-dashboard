@@ -18,6 +18,7 @@ import time
 import urllib.request
 import concurrent.futures as cf
 from portfolio import holding_names, holding_symbols, load_portfolio_config, option_underlyings
+from portfolio_snapshot import load_portfolio_snapshot, snapshot_equity_symbols
 
 # ---------------- 配置 ----------------
 ALL_SYMS = (
@@ -482,15 +483,23 @@ def fetch_fedwatch(yf_data, econ_calendar):
 def main():
     today = datetime.datetime.now().strftime("%Y-%m-%d")
     print(f"=== fetch_data.py 运行于 {today} ===")
+    private_snapshot = load_portfolio_snapshot()
+    snapshot_symbols = snapshot_equity_symbols(private_snapshot)
+    market_symbols = list(dict.fromkeys(
+        ALL_SYMS.split(",") + [f"us{symbol}" for symbol in snapshot_symbols]
+    ))
+    market_symbols_csv = ",".join(market_symbols)
+    state = f"已载入（{len(snapshot_symbols)} 只股票）" if private_snapshot.get("available") else "未载入"
+    print(f"Robinhood 仓位快照：{state}")
 
     # 1) 行情 K 线（70 日，覆盖 1日/1周/1月/3月 + RSI + 乖离率）
     print("拉取 westockdata K 线...")
-    kline_out = run_kline(ALL_SYMS, 70)
+    kline_out = run_kline(market_symbols_csv, 70)
     rows = parse_kline(kline_out)
     if not rows:
         # 兜底：重试一次
         print("首次拉取为空，重试...")
-        kline_out = run_kline(ALL_SYMS, 70)
+        kline_out = run_kline(market_symbols_csv, 70)
         rows = parse_kline(kline_out)
 
     # 确定最新两个交易日
@@ -598,6 +607,7 @@ def main():
             "option_underlyings": OPTION_UNDERLYINGS,
             "note": "Public symbol-only configuration; quantities and cost basis are intentionally excluded.",
         },
+        "private_portfolio_snapshot": private_snapshot,
         "earnings": earnings,
         "yf": yf_data,
         "options": options_data,

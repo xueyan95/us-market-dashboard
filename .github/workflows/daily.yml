@@ -46,6 +46,17 @@ jobs:
       - name: Fetch RSS news (multi-source)
         run: python fetch_news.py
 
+      - name: Materialize Robinhood portfolio snapshot
+        env:
+          PORTFOLIO_SNAPSHOT_B64: ${{ secrets.PORTFOLIO_SNAPSHOT_B64 }}
+        run: |
+          if [ -z "$PORTFOLIO_SNAPSHOT_B64" ]; then
+            echo "No portfolio snapshot secret configured."
+          else
+            printf '%s' "$PORTFOLIO_SNAPSHOT_B64" | base64 --decode > portfolio_snapshot.json
+            echo "Robinhood portfolio snapshot materialized."
+          fi
+
       - name: Fetch market data
         run: python fetch_data.py
 

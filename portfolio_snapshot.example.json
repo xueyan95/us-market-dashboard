@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "as_of": "2026-09-04T10:00:00Z",
+  "currency": "USD",
+  "account": {
+    "total_value": 0,
+    "cash": 0,
+    "buying_power": 0,
+    "equity_value": 0,
+    "options_value": 0
+  },
+  "equities": [
+    {"symbol": "INTC", "quantity": 0, "average_cost": 0}
+  ],
+  "options": [
+    {"underlying": "INTC", "type": "call", "strike": 120, "quantity": 0, "average_price": 0, "expiration_date": "2026-12-18"}
+  ]
+}

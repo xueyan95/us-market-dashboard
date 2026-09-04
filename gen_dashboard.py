@@ -11,6 +11,7 @@ import os
 import datetime
 import html as _html
 from portfolio import holding_names, holding_symbols, load_portfolio_config, option_underlyings
+from portfolio_snapshot import load_portfolio_snapshot
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -85,6 +86,7 @@ SENT = M.get("sentiment", {})
 YF = M.get("yf", {})
 D_LATEST = M.get("d_latest", "—")
 D_PREV = M.get("d_prev", "—")
+PRIVATE_SNAPSHOT = M.get("private_portfolio_snapshot") or load_portfolio_snapshot()
 REPORT_SLOT = os.environ.get("REPORT_SLOT", A.get("report_slot", "postmarket"))
 REPORT_LABEL = {"premarket": "盘前作战卡", "postmarket": "收盘复盘"}.get(REPORT_SLOT, "市场报告")
 DATA_BASIS = (
@@ -511,6 +513,47 @@ for s in HOLDINGS:
 hold_summary = f'<div class="note" style="color:var(--gold)">⭐ 今日持仓：{" / ".join(strong) if strong else "—"}（上涨）；{" / ".join(weak) if weak else "—"}（下跌）。</div>'
 
 
+def private_portfolio_panel():
+    if not PRIVATE_SNAPSHOT.get("available"):
+        return '<div class="note">未载入 Robinhood 仓位快照；公开行情看板仍可正常运行。</div>'
+
+    account = PRIVATE_SNAPSHOT.get("account", {})
+    total = float(account.get("total_value") or 0)
+    cash = float(account.get("cash") or 0)
+    options_value = float(account.get("options_value") or 0)
+    equity_value = float(account.get("equity_value") or 0)
+    currency = esc(PRIVATE_SNAPSHOT.get("currency", "USD"))
+    def money(value):
+        return f"{currency} {value:,.2f}"
+    def pct(value):
+        return f"{value / total * 100:.1f}%" if total else "—"
+
+    equity_rows = "".join(
+        f'<tr><td><b>{esc(item.get("symbol", "—"))}</b></td><td>{float(item.get("quantity") or 0):g}</td>'
+        f'<td>{money(float(item.get("average_cost") or 0))}</td></tr>'
+        for item in PRIVATE_SNAPSHOT.get("equities", [])
+    ) or '<tr><td colspan="3" class="muted">暂无股票仓位</td></tr>'
+    option_rows = "".join(
+        f'<tr><td><b>{esc(item.get("underlying", "—"))}</b> {esc(item.get("type", ""))} {float(item.get("strike") or 0):g}</td>'
+        f'<td>{esc(item.get("expiration_date", "—"))}</td><td>{float(item.get("quantity") or 0):g}</td>'
+        f'<td>{money(float(item.get("average_price") or 0))}</td></tr>'
+        for item in PRIVATE_SNAPSHOT.get("options", [])
+    ) or '<tr><td colspan="4" class="muted">暂无期权仓位</td></tr>'
+    return f'''<div class="kv">
+      <div class="it"><div class="k">账户净值</div><div class="v">{money(total)}</div></div>
+      <div class="it"><div class="k">现金 / 净值</div><div class="v">{money(cash)} · {pct(cash)}</div></div>
+      <div class="it"><div class="k">股票 / 净值</div><div class="v">{money(equity_value)} · {pct(equity_value)}</div></div>
+      <div class="it"><div class="k">期权 / 净值</div><div class="v">{money(options_value)} · {pct(options_value)}</div></div>
+    </div><div class="note">Robinhood 快照时间：{esc(PRIVATE_SNAPSHOT.get("as_of", "—"))}；公开展示由你授权。</div>
+    <h3 style="margin-top:16px;font-size:13.5px;color:var(--accent)">股票明细</h3>
+    <table><tr><th>代码</th><th>数量</th><th>平均成本</th></tr>{equity_rows}</table>
+    <h3 style="margin-top:16px;font-size:13.5px;color:var(--accent)">期权明细</h3>
+    <table><tr><th>合约</th><th>到期</th><th>数量</th><th>平均成本/张</th></tr>{option_rows}</table>'''
+
+
+private_panel = private_portfolio_panel()
+
+
 # ================= CSS =================
 CSS = """
 :root{--red:#d23a3a;--green:#0a9e6e;--bg:#0f1115;--card:#181b21;--card2:#20242c;
@@ -720,6 +763,8 @@ body = f"""
   <h2 style="font-size:13.5px">核心持仓 · 蝴蝶图（{len(HOLDINGS)}只 · 最近常规盘 {D_LATEST}）</h2>
   {butterfly()}
   {hold_summary}
+  <h2 style="font-size:13.5px;margin-top:18px">Robinhood 组合面板</h2>
+  {private_panel}
   <h2 style="font-size:13.5px;margin-top:18px">观察分组 · AI 五层蛋糕（黄仁勋框架 · 自上而下）</h2>
   <div class="sec-desc">标「仓」者为当前持仓；数据为 {D_LATEST} 收盘涨跌幅。</div>
   {layer(*LAYERS[0])}

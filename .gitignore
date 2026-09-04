@@ -2,6 +2,7 @@
 market_data.json
 analysis.json
 index.html
+portfolio_snapshot.json
 
 # Python
 __pycache__/
