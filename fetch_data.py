@@ -70,10 +70,13 @@ def _yf_chg(sym):
 
 # 关注池（财报过滤用）
 FOCUS = {"NVDA", "AMD", "TSM", "AVGO", "MU", "ARM", "ASML", "AMAT", "MRVL", "CRDO",
-         "INTC", "WOLF", "COHR", "LAZR", "FOTO", "EUV", "APP", "NOW", "BE", "NBIS",
-         "ORCL", "ANET", "VRT", "EQIX", "AAPL", "TSLA", "SNOW", "NET", "CRM", "PLTR",
-         "ADBE", "CRWD", "VST", "CEG", "GEV", "OKLO", "AEHR", "NOK", "CIEN", "ZS",
-         "IOT", "GWRE", "DOCU", "PATH", "LULU", "TTC", "AMBA", "MSFT", "AMZN", "GOOGL", "META"}
+         "INTC", "WOLF", "COHR", "LAZR", "FOTO", "EUV", "CRWV", "APP", "NOW", "BE",
+         "NBIS", "ORCL", "ANET", "VRT", "EQIX", "AAPL", "TSLA", "SNOW", "NET", "CRM",
+         "PLTR", "ADBE", "CRWD", "VST", "CEG", "GEV", "OKLO", "AEHR", "NOK", "CIEN",
+         "ZS", "IOT", "GWRE", "DOCU", "PATH", "LULU", "TTC", "AMBA", "MSFT", "AMZN",
+         "GOOGL", "META"}
+# 注：FOCUS 在 fetch_data.py 仅占位（不直接过滤）；gen_dashboard.py 第 357 行
+# 用 `sym in FOCUS` 过滤「财报命中」表。两边保持一致避免后续维护混乱。
 
 
 def run_kline(syms, limit):
@@ -391,7 +394,7 @@ def _parse_westock_calendar(stdout):
                 "forecast": parts[9],
                 "actual": parts[10],
                 "area": parts[12],
-                "is_speech": not parts[13],  # FinancialEvent 非空 = 讲话/休市
+                "is_speech": not parts[5].strip(),  # Content(parts[5]) 空 = 讲话/休市；非空 = 经济数据
             })
         except (ValueError, IndexError):
             continue

@@ -58,10 +58,11 @@ MATRIX_LAYERS = [
 TREND_LABELS = [("1日", "chg_pct"), ("1周", "p1w"), ("1月", "p1m"), ("3月", "p3m")]
 
 FOCUS = {"NVDA", "AMD", "TSM", "AVGO", "MU", "ARM", "ASML", "AMAT", "MRVL", "CRDO",
-         "INTC", "WOLF", "COHR", "LAZR", "APP", "NOW", "BE", "NBIS", "ORCL", "ANET",
-         "VRT", "EQIX", "AAPL", "TSLA", "SNOW", "NET", "CRM", "PLTR", "ADBE", "CRWD",
-         "VST", "CEG", "GEV", "OKLO", "AEHR", "NOK", "CIEN", "ZS", "IOT", "GWRE",
-         "DOCU", "PATH", "LULU", "TTC", "AMBA", "MSFT", "AMZN", "GOOGL", "META"}
+         "INTC", "WOLF", "COHR", "LAZR", "FOTO", "EUV", "CRWV", "APP", "NOW", "BE",
+         "NBIS", "ORCL", "ANET", "VRT", "EQIX", "AAPL", "TSLA", "SNOW", "NET", "CRM",
+         "PLTR", "ADBE", "CRWD", "VST", "CEG", "GEV", "OKLO", "AEHR", "NOK", "CIEN",
+         "ZS", "IOT", "GWRE", "DOCU", "PATH", "LULU", "TTC", "AMBA", "MSFT", "AMZN",
+         "GOOGL", "META"}
 
 DISCLAIMER = "以上内容基于公开数据，仅供参考，不构成投资建议。市场有风险，投资需谨慎。"
 
@@ -769,22 +770,20 @@ body = f"""
 </div>
 
 <div class="card">
-  <h2>⑧ 事件日历 <span class="tag">宏观 + 财报</span></h2>
+  <h2>⑧ 事件日历 <span class="tag">宏观 + AI 五层蛋糕持仓/关注池财报</span></h2>
   <div class="sec-desc">
-    未来 7 天高重要性宏观数据（来自 westock 经济日历，仅含权重=3 的事件，含前值/预期/实际）。
-    下方为持仓/关注池财报（Nasdaq keyless 接口）。
+    未来 7 天高重要性宏观数据（来自 westock 经济日历，权重≥3 事件，含前值/预期/实际）。
+    下方为持仓/关注池（AI 五层蛋糕全部 {len(FOCUS)} 只标的）近 6 日财报（Nasdaq keyless 接口）。
   </div>
   <table>
     <tr><th>距今</th><th>事件</th><th>前值</th><th>预期</th><th>实际</th></tr>
     {econ_rows}
   </table>
-  <details class="news-details">
-    <summary>📊 近 6 日持仓/关注池财报（{len(ear_fwd_rows.split('<tr>'))-1 if ear_fwd_rows else 0} 条）</summary>
-    <table style="margin-top:8px">
-      <tr><th>代码</th><th>公司</th><th>日期/时间</th><th>距离</th><th>EPS预测</th><th>去年同期</th></tr>
-      {ear_fwd_rows}
-    </table>
-  </details>
+  <h3 style="margin-top:18px;font-size:13.5px;color:var(--accent)">📊 持仓/关注池 · 近 6 日财报（{len([s for s in ear_fwd_rows.split('<tr>') if s.startswith('<td>')]) if ear_fwd_rows and '无' not in ear_fwd_rows else 0} 条）</h3>
+  <table>
+    <tr><th>代码</th><th>公司</th><th>日期/时间</th><th>距离</th><th>EPS预测</th><th>去年同期</th></tr>
+    {ear_fwd_rows}
+  </table>
 </div>
 
 <div class="card">
