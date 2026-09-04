@@ -110,6 +110,15 @@ def build_message():
         parts.append("")
         parts.append(f"【近期关注】{esc(a['tomorrow_focus'])}")
 
+    # === 今日焦点（多源主题聚类前 3）===
+    themes = a.get("news_themes", []) or []
+    if themes:
+        parts.append("")
+        parts.append("【今日焦点】")
+        for i, th in enumerate(themes[:3]):
+            headline = esc(str(th.get("headline", "")).strip() or th.get("theme", ""))
+            parts.append(f"  {i+1}. {headline}")
+
     parts.extend([
         "",
         "完整看板见 GitHub Actions 产物 <code>index.html</code>",

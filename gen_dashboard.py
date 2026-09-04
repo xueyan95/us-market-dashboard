@@ -9,8 +9,16 @@ gen_dashboard.py — 数据驱动生成每日美股行情看板 index.html。
 import json
 import os
 import datetime
+import html as _html
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+
+
+def esc(s):
+    """HTML escape."""
+    if s is None:
+        return ""
+    return _html.escape(str(s), quote=True)
 
 # ---------------- 持仓与五层蛋糕分组（黄仁勋框架） ----------------
 HOLDINGS = ["usLAZR", "usINTC", "usAPP", "usBE", "usCOHR", "usWOLF", "usNBIS", "usNOW"]
@@ -359,8 +367,63 @@ if not ear_fwd_rows:
 concl = A.get("conclusion", "（暂无研判）")
 q4 = A.get("q4_why_buy", ""), A.get("q4_when_sell", ""), A.get("q4_emotion", "5/10"), A.get("q4_worst", "")
 news_items = A.get("news", [])
+news_source = A.get("news_source", "rss")
+
+# === 主题聚类视图 ===
+themes = A.get("news_themes", []) or []
+news_by_theme_html = ""
+if themes:
+    # 主题卡片
+    theme_pills = ""
+    for i, th in enumerate(themes[:6]):
+        theme_pills += (
+            f'<div class="theme-card">'
+            f'<div class="theme-hd"><span class="theme-no">{i+1}</span>'
+            f'<b>{esc(str(th.get("theme","")))}</b></div>'
+            f'<div class="theme-hl">{esc(str(th.get("headline","")))}</div>'
+            f'<ul class="theme-list">'
+        )
+        for it in th.get("items", [])[:3]:
+            src = esc(str(it.get("source", "")))
+            theme_pills += (
+                f'<li><span class="src">[{src}]</span> '
+                f'{esc(str(it.get("title", "")))}</li>'
+            )
+        theme_pills += '</ul>'
+        tk = esc(str(th.get("takeaway", "")))
+        if tk:
+            theme_pills += f'<div class="theme-tk">→ {tk}</div>'
+        theme_pills += '</div>'
+    news_by_theme_html = (
+        '<div class="theme-grid">'
+        + theme_pills +
+        '</div>'
+    )
+
+# 原始新闻列表（来自 RSS 多源 news.json；不是 AI 输出的 news）
+raw_news = M.get("news", {}).get("items", []) or []
+raw_news_count = M.get("news", {}).get("count", 0)
+sources_dist = M.get("news", {}).get("sources", {})
+sources_label = " · ".join(f"{esc(k)} {v}" for k, v in sources_dist.items()) if sources_dist else ""
+
+raw_news_html = ""
+for it in raw_news[:12]:
+    title = esc(str(it.get("title", "")))
+    summary = esc(str(it.get("summary", "")[:120]))
+    src = esc(str(it.get("source", "")))
+    pub = it.get("published", "")
+    if pub:
+        pub = esc(str(pub[5:16].replace("T", " ")))  # MM-DD HH:MM
+    raw_news_html += (
+        f'<div class="news-card">'
+        f'<div class="news-title">{title}</div>'
+        f'<div class="news-meta"><span class="src">[{src}]</span> {pub}</div>'
+        + (f'<div class="news-sum">{summary}…</div>' if summary else '')
+        + '</div>'
+    )
+
 news_html = "".join(
-    f'<li><b>{x.get("title","")}</b>：{x.get("detail","")} <span class="src">[{x.get("source","")}]</span></li>'
+    f'<li><b>{esc(str(x.get("title","")))}</b>：{esc(str(x.get("detail","")))} <span class="src">[{esc(str(x.get("source","")))}]</span></li>'
     for x in news_items) if news_items else '<li>（暂无新闻）</li>'
 
 fw = A.get("fedwatch", {})
@@ -423,6 +486,27 @@ tr:last-child td{border-bottom:none}
 .news li{margin:8px 0;font-size:12.5px;color:var(--txt);padding:10px 14px;background:var(--card2);border-radius:8px;border-left:3px solid var(--accent);line-height:1.5}
 .news li b{color:var(--txt);display:block;margin-bottom:2px;font-size:13px;font-weight:700}
 .news li .src{display:inline-block;color:var(--sub);font-size:11px;margin-top:4px;padding:1px 6px;background:var(--card);border-radius:6px}
+.theme-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;margin:6px 0 14px}
+.theme-card{background:var(--card2);border-radius:12px;padding:14px;border-left:3px solid var(--accent);transition:transform .15s}
+.theme-card:hover{transform:translateY(-2px)}
+.theme-hd{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.theme-no{display:inline-flex;width:22px;height:22px;background:var(--accent);color:#fff;border-radius:6px;align-items:center;justify-content:center;font-size:12px;font-weight:700}
+.theme-hd b{font-size:14px;color:var(--txt)}
+.theme-hl{font-size:12.5px;color:var(--gold);margin:4px 0 8px;font-weight:600}
+.theme-list{list-style:none;padding:0;margin:6px 0;font-size:11.5px;color:var(--sub);line-height:1.7}
+.theme-list li{padding-left:0}
+.theme-list .src{color:var(--accent);font-weight:600}
+.theme-tk{margin-top:8px;padding:8px 10px;background:var(--card);border-radius:6px;font-size:11.5px;color:var(--txt);font-style:italic}
+.news-details{margin-top:10px}
+.news-details summary{cursor:pointer;color:var(--accent);font-size:12.5px;font-weight:600;padding:6px 0;user-select:none}
+.news-details summary:hover{color:var(--txt)}
+.news-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px;margin-top:10px}
+.news-card{background:var(--card2);border-radius:8px;padding:10px 12px;border-left:2px solid var(--line);transition:border-color .15s}
+.news-card:hover{border-left-color:var(--accent)}
+.news-title{font-size:12.5px;color:var(--txt);font-weight:600;line-height:1.4;margin-bottom:4px}
+.news-meta{font-size:10.5px;color:var(--sub);display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.news-meta .src{background:var(--card);padding:1px 5px;border-radius:4px;font-size:10px}
+.news-sum{font-size:11.5px;color:var(--sub);line-height:1.5;margin-top:4px}
 .rsi-lbl{display:block;font-size:10px;margin-top:3px;font-weight:700;letter-spacing:.3px}
 .rsi-lbl:empty{display:none}
 td .rsi-lbl{color:inherit}
@@ -560,9 +644,16 @@ body = f"""
 </div>
 
 <div class="card">
-  <h2>⑥ 重要信息 <span class="tag">半导体 / AI 专题</span></h2>
-  <ul class="news">{news_html}</ul>
-  <div class="note">来源：Gemini 联网检索（Google Search grounding），{GEN_TIME}。</div>
+  <h2>⑥ 重要信息 <span class="tag">多源聚合 · {raw_news_count} 条 / {len(themes)} 主题</span></h2>
+
+  <div class="sec-desc">聚合自 <b>{len(sources_dist)}</b> 个源（{sources_label}），用 SiliconFlow 做主题聚类。共抓到 <b>{raw_news_count}</b> 条 RSS 新闻，聚成 <b>{len(themes)}</b> 个主题，{GEN_TIME}。</div>
+
+  {news_by_theme_html}
+
+  <details class="news-details">
+    <summary>📜 查看全部 {raw_news_count} 条原始新闻（按时间倒序）</summary>
+    <div class="news-grid">{raw_news_html}</div>
+  </details>
 </div>
 
 <div class="card">

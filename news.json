@@ -1,0 +1,523 @@
+{
+  "generated_at": "2026-09-04T15:12:35.817617",
+  "count": 42,
+  "sources": {
+    "Yahoo Top": 8,
+    "Yahoo Finance": 8,
+    "Bloomberg": 6,
+    "WSJ Markets": 6,
+    "CNBC": 6,
+    "MarketWatch": 5,
+    "Seeking Alpha": 5,
+    "Investing": 4,
+    "Investing CN": 4
+  },
+  "items": [
+    {
+      "title": "Fiscal Dominance Will Break The Dollar's Long-Term Trend",
+      "link": "https://seekingalpha.com/article/4943013-fiscal-dominance-will-break-the-dollars-long-term-trend?source=feed_all_articles",
+      "summary": "",
+      "published": "2026-09-04T07:08:38",
+      "published_ts": 1788476918.0,
+      "source": "Seeking Alpha",
+      "lang": "en",
+      "themes": [
+        "macro"
+      ]
+    },
+    {
+      "title": "AbbVie: Shares Defy Sell-Side Downgrades, And That's Bullish (Technical Analysis)",
+      "link": "https://seekingalpha.com/article/4943011-abbvie-shares-defy-sellside-downgrades-and-thats-bullish-technical-analysis?source=feed_all_articles",
+      "summary": "",
+      "published": "2026-09-04T07:07:53",
+      "published_ts": 1788476873.0,
+      "source": "Seeking Alpha",
+      "lang": "en",
+      "themes": [
+        "other"
+      ]
+    },
+    {
+      "title": "Milton Capital agrees to acquire European tech firm Apostrophy",
+      "link": "https://www.investing.com/news/company-news/milton-capital-agrees-to-acquire-european-tech-firm-apostrophy-93CH-4888874",
+      "summary": "",
+      "published": "2026-09-04T07:07:02",
+      "published_ts": 1788476822.0,
+      "source": "Investing",
+      "lang": "en",
+      "themes": [
+        "other"
+      ]
+    },
+    {
+      "title": "Volkswagen shares jump in early trade on turnaround agreement",
+      "link": "https://www.investing.com/news/stock-market-news/volkswagen-shares-jump-in-early-trade-following-turnaround-agreement-4888864",
+      "summary": "",
+      "published": "2026-09-04T07:07:01",
+      "published_ts": 1788476821.0,
+      "source": "Investing",
+      "lang": "en",
+      "themes": [
+        "other"
+      ]
+    },
+    {
+      "title": "The inflation genie could be out of the bottle — and bond markets are sounding the alarm",
+      "link": "https://www.cnbc.com/2026/09/04/global-bond-selloff-inflation-risk.html",
+      "summary": "Global bond yields have surged as investors assess whether rising debt, tariffs, defense spending and energy shocks could keep inflation higher for longer.",
+      "published": "2026-09-04T07:05:29",
+      "published_ts": 1788476729.0,
+      "source": "CNBC",
+      "lang": "en",
+      "themes": [
+        "macro",
+        "geopolitics"
+      ]
+    },
+    {
+      "title": "Who's The Spread Product Now?",
+      "link": "https://seekingalpha.com/article/4943026-who-is-spread-product-now?source=feed_all_articles",
+      "summary": "",
+      "published": "2026-09-04T07:05:00",
+      "published_ts": 1788476700.0,
+      "source": "Seeking Alpha",
+      "lang": "en",
+      "themes": [
+        "other"
+      ]
+    },
+    {
+      "title": "Municipality Finance issues NOK 2 billion seven-year notes",
+      "link": "https://www.investing.com/news/company-news/municipality-finance-issues-nok-2-billion-sevenyear-notes-93CH-4888871",
+      "summary": "",
+      "published": "2026-09-04T07:03:20",
+      "published_ts": 1788476600.0,
+      "source": "Investing",
+      "lang": "en",
+      "themes": [
+        "other"
+      ]
+    },
+    {
+      "title": "Global bond sell-off likely not over yet, Mohamed El-Erian tells CNBC",
+      "link": "https://www.cnbc.com/2026/09/04/el-erian-government-bond-selloff.html",
+      "summary": "In a wide-ranging interview, the renowned economist also said the U.S. Treasury had taken \"a step too far\" with its market intervention.",
+      "published": "2026-09-04T07:01:13",
+      "published_ts": 1788476473.0,
+      "source": "CNBC",
+      "lang": "en",
+      "themes": [
+        "other"
+      ]
+    },
+    {
+      "title": "PU Prime Launches Australian Operations under ASIC Licence",
+      "link": "https://www.investing.com/news/company-news/pu-prime-launches-australian-operations-under-asic-licence-4888869",
+      "summary": "",
+      "published": "2026-09-04T07:00:43",
+      "published_ts": 1788476443.0,
+      "source": "Investing",
+      "lang": "en",
+      "themes": [
+        "other"
+      ]
+    },
+    {
+      "title": "Japan stocks higher at close of trade; Nikkei 225 up 1.28%",
+      "link": "https://www.investing.com/news/stock-market-news/japan-stocks-higher-at-close-of-trade-nikkei-225-up-128-4888868",
+      "summary": "",
+      "published": "2026-09-04T07:00:04",
+      "published_ts": 1788476404.0,
+      "source": "Investing CN",
+      "lang": "en",
+      "themes": [
+        "other"
+      ]
+    },
+    {
+      "title": "BNY Mellon Opportunistic Municipal Securities Fund Q2 2026 Commentary",
+      "link": "https://seekingalpha.com/article/4943025-bny-mellon-opportunistic-municipal-securities-fund-q2-2026-commentary?source=feed_all_articles",
+      "summary": "",
+      "published": "2026-09-04T07:00:00",
+      "published_ts": 1788476400.0,
+      "source": "Seeking Alpha",
+      "lang": "en",
+      "themes": [
+        "other"
+      ]
+    },
+    {
+      "title": "Ultra Clean: AI Growth Is Surging And The Market Still Looks Too Cautious",
+      "link": "https://seekingalpha.com/article/4943024-ultra-clean-ai-growth-is-surging-and-the-market-still-looks-too-cautious?source=feed_all_articles",
+      "summary": "",
+      "published": "2026-09-04T06:55:59",
+      "published_ts": 1788476159.0,
+      "source": "Seeking Alpha",
+      "lang": "en",
+      "themes": [
+        "ai_tech"
+      ]
+    },
+    {
+      "title": "Yen Holds Most of Its Gains After Thursday's 2% Rise",
+      "link": "https://www.bloomberg.com/news/videos/2026-09-04/yen-holds-most-of-its-gains-after-thursday-s-2-rise-video",
+      "summary": "The yen held most of its gains Friday after advancing more than 2% on Thursday. A rush to unwind yen-funded carry trades helped send the currency to a one-month high against the dollar as traders ramped up bets on further Bank of Japan rate hikes. Bloomberg's David Savage reports. (Source: Bloomberg)",
+      "published": "2026-09-04T06:55:52",
+      "published_ts": 1788476152.0,
+      "source": "Bloomberg",
+      "lang": "en",
+      "themes": [
+        "macro"
+      ]
+    },
+    {
+      "title": "World's biggest sovereign wealth fund plans to cut U.S. Treasury holdings",
+      "link": "https://www.cnbc.com/2026/09/04/worlds-biggest-sovereign-wealth-fund-plans-to-cut-treasury-holdings.html",
+      "summary": "Norway's $2.3 trillion investment fund says it can diversify into new areas with greater risk and returns.",
+      "published": "2026-09-04T06:46:35",
+      "published_ts": 1788475595.0,
+      "source": "CNBC",
+      "lang": "en",
+      "themes": [
+        "other"
+      ]
+    },
+    {
+      "title": "Oil investors need democratic Venezuela for stability, opposition leader says",
+      "link": "https://www.investing.com/news/stock-market-news/only-democratic-government-can-provide-stability-for-oil-investors-venezuelan-opposition-leader-says-4888305",
+      "summary": "",
+      "published": "2026-09-04T06:42:32",
+      "published_ts": 1788475352.0,
+      "source": "Investing CN",
+      "lang": "en",
+      "themes": [
+        "other"
+      ]
+    },
+    {
+      "title": "Pimco Fund Beating 97% of Peers Cuts ‘Mag Seven’ to Bet on Asia",
+      "link": "https://www.bloomberg.com/news/articles/2026-09-04/pimco-fund-beating-97-of-peers-cuts-mag-seven-to-bet-on-asia",
+      "summary": "A top-performing fund manager at Pacific Investment Management Co. is betting the next winners of the AI boom will be found outside of crowded US Big Tech firms, turning instead to Asian equipment suppliers, Chinese financials and healthcare stocks.",
+      "published": "2026-09-04T06:42:12",
+      "published_ts": 1788475332.0,
+      "source": "Bloomberg",
+      "lang": "en",
+      "themes": [
+        "ai_tech"
+      ]
+    },
+    {
+      "title": "Sectra Q1 sales rise 25.8% as cloud revenue crosses SEK 1 bln",
+      "link": "https://www.investing.com/news/stock-market-news/sectra-q1-sales-rise-258-as-cloud-revenue-crosses-sek-1-bln-93CH-4888863",
+      "summary": "",
+      "published": "2026-09-04T06:40:57",
+      "published_ts": 1788475257.0,
+      "source": "Investing CN",
+      "lang": "en",
+      "themes": [
+        "other"
+      ]
+    },
+    {
+      "title": "Markets Weigh Energy Supply Strain: Market Snapshot",
+      "link": "https://www.bloomberg.com/news/videos/2026-09-04/markets-weigh-energy-supply-strain-market-snapshot-video",
+      "summary": "A fresh flare up in tit-for-tat attacks between the US and Iran put the Strait of Hormuz back in focus as gas, oil and other commodity prices rallied this week. With negotiations between the two sides grinding to a halt and Europe nearing the end of summer, dwindling gas storage levels are threatening to intensify a global fight for supply. The Opening Trade spoke with guests about the outlook as ",
+      "published": "2026-09-04T06:31:42",
+      "published_ts": 1788474702.0,
+      "source": "Bloomberg",
+      "lang": "en",
+      "themes": [
+        "geopolitics"
+      ]
+    },
+    {
+      "title": "U.S. 'Economic Outcast’ operation gains momentum as EU joins sanctions; South Korea weighs military backing",
+      "link": "https://www.cnbc.com/2026/09/04/us-iran-war-trump-hormuz-operation-economic-outcast-sanctions-campaign.html",
+      "summary": "The EU formally joined the U.S.-led sanctions campaign against Iran, while South Korea said it's weighing a military role to help reopen the Strait of Hormuz.",
+      "published": "2026-09-04T06:17:57",
+      "published_ts": 1788473877.0,
+      "source": "CNBC",
+      "lang": "en",
+      "themes": [
+        "geopolitics"
+      ]
+    },
+    {
+      "title": "World Bank’s Mishra Pushes Back on Doubts Over India Growth",
+      "link": "https://www.bloomberg.com/news/articles/2026-09-04/world-bank-s-mishra-pushes-back-on-doubts-over-india-growth",
+      "summary": "A range of high-frequency indicators show India’s economy is gaining momentum, World Bank Executive Director Neelkanth Mishra said on Friday, pushing back against skepticism over whether strong headline growth reflects conditions on the ground.",
+      "published": "2026-09-04T05:03:05",
+      "published_ts": 1788469385.0,
+      "source": "Bloomberg",
+      "lang": "en",
+      "themes": [
+        "other"
+      ]
+    },
+    {
+      "title": "Shein has made a shaky stock market entry. Can it get its mojo back?",
+      "link": "https://www.cnbc.com/2026/09/04/shein-ipo-fast-fashion-temu-competition.html",
+      "summary": "Shein’s Hong Kong IPO puts the focus on how the fast-fashion retailer can reaccelerate growth as its low-cost model faces new pressures.",
+      "published": "2026-09-04T04:49:36",
+      "published_ts": 1788468576.0,
+      "source": "CNBC",
+      "lang": "en",
+      "themes": [
+        "other"
+      ]
+    },
+    {
+      "title": "US pressure on Iran starting to tell, as sanctions and blockade bite",
+      "link": "https://www.yahoo.com/news/articles/us-pressure-iran-starting-tell-150155652.html",
+      "summary": "",
+      "published": "2026-09-04T03:59:54",
+      "published_ts": 1788465594.0,
+      "source": "Yahoo Top",
+      "lang": "en",
+      "themes": [
+        "geopolitics"
+      ]
+    },
+    {
+      "title": "Bathla Crisis Puts Focus on $94 Million of Unsecured Debts",
+      "link": "https://www.bloomberg.com/news/articles/2026-09-04/bathla-crisis-puts-focus-on-94-million-of-unsecured-debts",
+      "summary": "Bathla Group’s administrator gave a breakdown of known creditors for the first time as talks remain ongoing to stave off liquidation at the embattled Sydney property developer.",
+      "published": "2026-09-04T02:21:53",
+      "published_ts": 1788459713.0,
+      "source": "Bloomberg",
+      "lang": "en",
+      "themes": [
+        "other"
+      ]
+    },
+    {
+      "title": "Snowflake has a secret weapon that’s powering its stock toward a huge gain",
+      "link": "https://www.marketwatch.com/story/shares-in-snowflake-are-surging-heres-what-wall-street-analysts-are-saying-0b6343c0?mod=mw_rss_topstories",
+      "summary": "The company’s AI-powered coding assistant is driving major sales momentum.",
+      "published": "2026-09-04T00:35:00",
+      "published_ts": 1788453300.0,
+      "source": "MarketWatch",
+      "lang": "en",
+      "themes": [
+        "ai_tech"
+      ]
+    },
+    {
+      "title": "‘I currently give him $1,000 a month’: My grandson has severe mental illness. How do I protect him after I’m gone?",
+      "link": "https://www.marketwatch.com/story/im-desperately-trying-to-plan-ahead-im-leaving-everything-to-my-grandson-who-has-severe-mental-illness-how-can-i-protect-him-d8df2646?mod=mw_rss_topstories",
+      "summary": "“I’m desperately trying to plan ahead while I’m still able.”",
+      "published": "2026-09-04T00:31:00",
+      "published_ts": 1788453060.0,
+      "source": "MarketWatch",
+      "lang": "en",
+      "themes": [
+        "other"
+      ]
+    },
+    {
+      "title": "Adobe just announced its next CEO. Here’s why its stock is dropping.",
+      "link": "https://www.marketwatch.com/story/adobe-just-announced-its-next-ceo-heres-why-its-stock-is-dropping-bad9ed8a?mod=mw_rss_topstories",
+      "summary": "Incoming CEO Anil Chakravarthy is a company veteran. But another longtime business head will be departing Adobe, potentially foreshadowing further turnover in leadership.",
+      "published": "2026-09-04T00:25:00",
+      "published_ts": 1788452700.0,
+      "source": "MarketWatch",
+      "lang": "en",
+      "themes": [
+        "other"
+      ]
+    },
+    {
+      "title": "Lululemon bets on ‘away from body’ pants as customers sour on form-fitting leggings",
+      "link": "https://www.marketwatch.com/story/lululemons-sales-drop-raises-deeper-concerns-about-the-companys-turnaround-ddf9256a?mod=mw_rss_topstories",
+      "summary": "Adobe’s stock is falling as analysts question the yoga-wear maker’s fashion assortment and digest its disappointing outlook.",
+      "published": "2026-09-04T00:24:00",
+      "published_ts": 1788452640.0,
+      "source": "MarketWatch",
+      "lang": "en",
+      "themes": [
+        "other"
+      ]
+    },
+    {
+      "title": "‘Please don’t let this happen to you’: My best friend died without a will — her neglectful family gets everything",
+      "link": "https://www.marketwatch.com/story/please-dont-let-this-happen-to-you-my-best-friend-died-without-a-will-her-neglectful-family-gets-everything-a4e6753e?mod=mw_rss_topstories",
+      "summary": "“She struggled with the thought of leaving everything to people who, in her eyes, had never made much time for her.”",
+      "published": "2026-09-04T00:00:00",
+      "published_ts": 1788451200.0,
+      "source": "MarketWatch",
+      "lang": "en",
+      "themes": [
+        "other"
+      ]
+    },
+    {
+      "title": "Latest Oil Market News and Analysis for Sept. 4",
+      "link": "https://www.bloomberg.com/news/articles/2026-09-03/latest-oil-market-news-and-analysis-for-sept-4",
+      "summary": "Oil headed for its biggest weekly gain since July as renewed US-Iran hostilities heightened concerns about prolonged disruptions to energy flows through the Strait of Hormuz.",
+      "published": "2026-09-03T22:12:01",
+      "published_ts": 1788444721.0,
+      "source": "Bloomberg",
+      "lang": "en",
+      "themes": [
+        "geopolitics"
+      ]
+    },
+    {
+      "title": "Ukraine's Zelenskiy says investigation underway after clash between two security agencies",
+      "link": "https://www.yahoo.com/news/articles/ukraines-zelenskiy-says-investigation-underway-212716660.html",
+      "summary": "",
+      "published": "2026-09-03T21:27:16",
+      "published_ts": 1788442036.0,
+      "source": "Yahoo Top",
+      "lang": "en",
+      "themes": [
+        "geopolitics"
+      ]
+    },
+    {
+      "title": "FACT FOCUS: Trump claims US banks cannot operate in Canada. That's not true",
+      "link": "https://www.yahoo.com/news/politics/articles/fact-focus-trump-claims-us-201737023.html",
+      "summary": "",
+      "published": "2026-09-03T20:17:37",
+      "published_ts": 1788437857.0,
+      "source": "Yahoo Top",
+      "lang": "en",
+      "themes": [
+        "other"
+      ]
+    },
+    {
+      "title": "Woman who fatally shot man during confrontation over parking space won't be charged",
+      "link": "https://www.yahoo.com/news/us/articles/woman-fatally-shot-man-during-200509827.html",
+      "summary": "",
+      "published": "2026-09-03T20:05:09",
+      "published_ts": 1788437109.0,
+      "source": "Yahoo Top",
+      "lang": "en",
+      "themes": [
+        "other"
+      ]
+    },
+    {
+      "title": "Vance says Fed should lower interest rates: 'Would be nice to have some help'",
+      "link": "https://www.cnbc.com/2026/09/03/vance-fed-interest-rates-trump-bond-yields.html",
+      "summary": "Vice President J.D. Vance's remarks came less than two weeks before the Federal Open Market Committee is set to convene and decide whether to adjust rates.",
+      "published": "2026-09-03T19:18:59",
+      "published_ts": 1788434339.0,
+      "source": "CNBC",
+      "lang": "en",
+      "themes": [
+        "macro"
+      ]
+    },
+    {
+      "title": "The Feds took their best shot at Big Tech. They missed.",
+      "link": "https://finance.yahoo.com/technology/articles/feds-took-best-shot-big-145903676.html",
+      "summary": "",
+      "published": "2026-09-03T14:59:03",
+      "published_ts": 1788418743.0,
+      "source": "Yahoo Top",
+      "lang": "en",
+      "themes": [
+        "other"
+      ]
+    },
+    {
+      "title": "Mexican musician, pregnant wife, child and nanny killed in grisly shootings",
+      "link": "https://www.yahoo.com/entertainment/music/articles/mexican-musician-pregnant-wife-child-033933371.html",
+      "summary": "",
+      "published": "2026-09-03T03:39:33",
+      "published_ts": 1788377973.0,
+      "source": "Yahoo Top",
+      "lang": "en",
+      "themes": [
+        "other"
+      ]
+    },
+    {
+      "title": "Why you can't find McDonald's $3 value menu",
+      "link": "https://finance.yahoo.com/small-business/articles/mcdonalds-3-menu-problem-hits-231000768.html",
+      "summary": "",
+      "published": "2026-09-02T23:10:00",
+      "published_ts": 1788361800.0,
+      "source": "Yahoo Finance",
+      "lang": "en",
+      "themes": [
+        "other"
+      ]
+    },
+    {
+      "title": "Democrats block proposed constitutional amendment to keep Supreme Court justices to nine",
+      "link": "https://www.yahoo.com/news/politics/articles/democrats-block-proposed-constitutional-amendment-212039185.html",
+      "summary": "",
+      "published": "2026-09-02T21:20:39",
+      "published_ts": 1788355239.0,
+      "source": "Yahoo Top",
+      "lang": "en",
+      "themes": [
+        "other"
+      ]
+    },
+    {
+      "title": "Dear Zscaler Stock Fans, Mark Your Calendars for September 3",
+      "link": "https://finance.yahoo.com/markets/stocks/articles/dear-zscaler-stock-fans-mark-192742718.html",
+      "summary": "",
+      "published": "2026-09-02T19:27:42",
+      "published_ts": 1788348462.0,
+      "source": "Yahoo Finance",
+      "lang": "en",
+      "themes": [
+        "other"
+      ]
+    },
+    {
+      "title": "PE borrowing for shareholder payouts shrinks in 2026",
+      "link": "https://finance.yahoo.com/markets/stocks/articles/pe-borrowing-shareholder-payouts-shrinks-192031326.html",
+      "summary": "",
+      "published": "2026-09-02T19:20:31",
+      "published_ts": 1788348031.0,
+      "source": "Yahoo Finance",
+      "lang": "en",
+      "themes": [
+        "other"
+      ]
+    },
+    {
+      "title": "Crude Oil Prices Supported by Escalation of US-Iran Hostilities",
+      "link": "https://finance.yahoo.com/energy/articles/crude-oil-prices-supported-escalation-191450462.html",
+      "summary": "",
+      "published": "2026-09-02T19:14:50",
+      "published_ts": 1788347690.0,
+      "source": "Yahoo Finance",
+      "lang": "en",
+      "themes": [
+        "geopolitics",
+        "energy_commodity"
+      ]
+    },
+    {
+      "title": "Nat-Gas Prices Rise on Hotter US Weather and Expectations of Smaller Storage",
+      "link": "https://finance.yahoo.com/energy/articles/nat-gas-prices-rise-hotter-191347980.html",
+      "summary": "",
+      "published": "2026-09-02T19:13:47",
+      "published_ts": 1788347627.0,
+      "source": "Yahoo Finance",
+      "lang": "en",
+      "themes": [
+        "other"
+      ]
+    },
+    {
+      "title": "Truist vs. U.S. Bancorp: Both Pay $0.52, but Only One Dividend Is Growing",
+      "link": "https://finance.yahoo.com/markets/stocks/articles/truist-vs-u-bancorp-both-191155267.html",
+      "summary": "",
+      "published": "2026-09-02T19:11:55",
+      "published_ts": 1788347515.0,
+      "source": "Yahoo Finance",
+      "lang": "en",
+      "themes": [
+        "other"
+      ]
+    }
+  ]
+}

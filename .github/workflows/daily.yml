@@ -41,7 +41,10 @@ jobs:
           key: npx-westock-1.0.4
 
       - name: Install Python deps
-        run: pip install yfinance
+        run: pip install yfinance feedparser
+
+      - name: Fetch RSS news (multi-source)
+        run: python fetch_news.py
 
       - name: Fetch market data
         run: python fetch_data.py

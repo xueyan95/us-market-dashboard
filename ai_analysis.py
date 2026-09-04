@@ -6,7 +6,8 @@ ai_analysis.py — 调用 SiliconFlow（硅基流动，OpenAI 兼容 API）做 A
 设计要点：
   - OpenAI 兼容 /chat/completions 端点，Bearer token 鉴权
   - response_format: json_object 强制 JSON 输出，无需手动 parse
-  - 不支持原生联网（无 googleSearch 等价物）→ 改用 yfinance 拉最近新闻塞进 prompt 当上下文
+  - 不支持原生联网（无 googleSearch 等价物）→ 改用 fetch_news.py 抓的 RSS 多源新闻做上下文
+  - 主题聚类：让模型把 20-30 条原始新闻聚成 4-6 大主题 + AI 摘要
   - 多模型降级链：72B → 32B → 14B，每档重试 3 次
   - API Key 从环境变量 SILICONFLOW_API_KEY 读取
 
@@ -14,12 +15,12 @@ ai_analysis.py — 调用 SiliconFlow（硅基流动，OpenAI 兼容 API）做 A
   SILICONFLOW_API_KEY  — 必填
   SF_MODEL             — 可选，默认 Qwen/Qwen2.5-72B-Instruct
 """
+import datetime
 import json
 import os
 import time
-import urllib.request
 import urllib.error
-import datetime
+import urllib.request
 
 import yfinance as yf
 
@@ -28,7 +29,7 @@ MODEL = os.environ.get("SF_MODEL", "Qwen/Qwen2.5-72B-Instruct")
 BASE = "https://api.siliconflow.cn/v1"
 
 HOLDINGS = ["LAZR", "INTC", "APP", "BE", "COHR", "WOLF", "NBIS", "NOW"]
-NEWS_TICKERS = ["^GSPC", "^IXIC", "NVDA", "AAPL", "MSFT", "TSLA", "GOOGL", "AMZN", "META"]
+NEWS_TICKERS = ["^GSPC", "^IXIC", "NVDA", "AAPL", "MSFT", "TSLA", "GOOGL", "AMZN"]
 
 
 def load_market():
@@ -37,8 +38,27 @@ def load_market():
         return json.load(f)
 
 
+def load_news():
+    """读 fetch_news.py 抓的 RSS 多源新闻。优先 news.json，没有再退到 yfinance。
+
+    返回 (items, source_label)，items 是 [{title, source, summary, themes?}, ...]。
+    """
+    here = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.join(here, "news.json")
+    if os.path.exists(path):
+        try:
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f)
+            items = data.get("items", [])
+            if items:
+                return items[:30], "rss"
+        except Exception as e:  # noqa: BLE001
+            print(f"  [news.json] 读取失败: {e}")
+    return fetch_yf_news(), "yfinance"
+
+
 def fetch_yf_news():
-    """拉主流指数/股票最近新闻，去重后取前 12 条。无网络或失败时返回 []. """
+    """yfinance 兜底：拉主流指数/股票最近新闻，去重后取前 12 条。"""
     items, seen = [], set()
     for sym in NEWS_TICKERS:
         try:
@@ -49,6 +69,7 @@ def fetch_yf_news():
                     seen.add(title)
                     items.append({
                         "title": title,
+                        "source": f"yfinance:{sym}",
                         "publisher": n.get("publisher", ""),
                         "link": n.get("link", ""),
                     })
@@ -57,7 +78,7 @@ def fetch_yf_news():
     return items[:12]
 
 
-def build_prompt(m, news):
+def build_prompt(m, news, news_source):
     q = m.get("quotes", {})
 
     def g(sym):
@@ -105,9 +126,15 @@ def build_prompt(m, news):
             sign = "+" if c > 0 else ""
             macro_lines.append(f"{label}: {v['last']} ({sign}{c}%)")
 
-    news_text = "\n".join(f"- {n['title']} ({n['publisher']})" for n in news) or "（暂无 yfinance 新闻）"
+    # 新闻上下文：RSS 多源已经分类过 themes，让模型用这个粗分类做参考
+    news_lines = []
+    for n in news:
+        themes = "/".join(n.get("themes", [])) or "general"
+        src = n.get("source", "?")
+        news_lines.append(f"- [{src}|{themes}] {n['title']}")
+    news_text = "\n".join(news_lines) or "（暂无新闻）"
 
-    return f"""你是专业美股投研分析师。基于以下【实时行情】+【近期新闻上下文】（yfinance 拉取，不保证完全实时）输出纯 JSON。
+    return f"""你是专业美股投研分析师。基于【实时行情】+【多源新闻上下文】（已用本地粗分类标记主题）输出纯 JSON。
 
 【交易日】{m.get('d_latest')}（前一交易日 {m.get('d_prev')}）
 
@@ -120,10 +147,10 @@ def build_prompt(m, news):
 【AI 五层蛋糕关键股】
 {chr(10).join(cake)}
 
-【宏观/债市】
+【宏观/债市/商品】
 {chr(10).join(macro_lines) if macro_lines else '（暂无）'}
 
-【近期新闻上下文（yfinance，可能非最新）】
+【近期多源新闻上下文（{news_source}，已分类主题）】
 {news_text}
 
 请输出 JSON（response_format=json_object 强制 JSON，不要任何 markdown 包裹或额外文字），字段：
@@ -141,14 +168,21 @@ def build_prompt(m, news):
     "meeting": "下次FOMC日期",
     "note": "FedWatch 来源说明（强调是模型估计非实时数据）"
   }},
+  "news_themes": [
+    {{"theme": "主题名（如 央行政策 / AI芯片 / 地缘 / 公司财报 / 大宗商品）", "headline": "主题一句话概括", "items": [{{"title": "该主题下新闻标题", "source": "媒体源"}}], "takeaway": "对市场含义一句话"}}
+  ],
   "news": [
-    {{"title": "新闻标题", "detail": "一句话要点", "source": "来源媒体或 yfinance"}}
+    {{"title": "原始新闻标题（挑最重要 5-8 条）", "detail": "一句话要点", "source": "媒体源或 ticker"}}
   ],
   "holdings_alert": "持仓预警：今日 8 只持仓里谁最强/谁最弱/是否有风险信号",
   "tomorrow_focus": "明日/近期关注事件（非农/CPI/PPI/FOMC/重要财报）"
 }}
 
-要求：news 给 6-10 条；数字尽量来自提供的行情数据，新闻尽量来自上面的 yfinance 上下文；中文输出。
+要求：
+- news_themes 给 4-6 个主题聚类，每个主题 items 限 2-4 条新闻标题，不要包含详细正文
+- news 给 5-8 条精选（跨主题）
+- 数字尽量来自提供的行情数据；新闻尽量来自上面多源上下文
+- 中文输出
 """
 
 
@@ -201,12 +235,11 @@ def call_siliconflow(prompt):
 def main():
     if not API_KEY:
         print("缺少环境变量 SILICONFLOW_API_KEY，跳过 AI 研判")
-        # 写一个空 analysis，让 pipeline 不挂
         empty = {
             "conclusion": "（未配置 SILICONFLOW_API_KEY，跳过）",
             "q4_why_buy": "", "q4_when_sell": "", "q4_emotion": "5/10", "q4_worst": "",
             "fedwatch": {"hike": "—", "hold": "—", "cut": "—", "meeting": "—", "note": "未配置"},
-            "news": [], "holdings_alert": "", "tomorrow_focus": "",
+            "news_themes": [], "news": [], "holdings_alert": "", "tomorrow_focus": "",
         }
         here = os.path.dirname(os.path.abspath(__file__))
         with open(os.path.join(here, "analysis.json"), "w", encoding="utf-8") as f:
@@ -214,11 +247,10 @@ def main():
         return
 
     m = load_market()
-    print("拉取近期新闻上下文（yfinance）...")
-    news = fetch_yf_news()
-    print(f"  拿到 {len(news)} 条新闻")
+    news, news_source = load_news()
+    print(f"加载新闻上下文: 来源={news_source}, {len(news)} 条")
 
-    prompt = build_prompt(m, news)
+    prompt = build_prompt(m, news, news_source)
     print(f"调用 SiliconFlow（{MODEL}）做 AI 研判...")
     try:
         analysis = call_siliconflow(prompt)
@@ -228,12 +260,13 @@ def main():
             "conclusion": "（SiliconFlow 调用失败，见日志）",
             "q4_why_buy": "", "q4_when_sell": "", "q4_emotion": "5/10", "q4_worst": "",
             "fedwatch": {"hike": "—", "hold": "—", "cut": "—", "meeting": "—", "note": ""},
-            "news": [], "holdings_alert": "", "tomorrow_focus": "",
+            "news_themes": [], "news": [], "holdings_alert": "", "tomorrow_focus": "",
             "error": str(e),
         }
 
     analysis["generated_at"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     analysis["model"] = MODEL
+    analysis["news_source"] = news_source
     here = os.path.dirname(os.path.abspath(__file__))
     with open(os.path.join(here, "analysis.json"), "w", encoding="utf-8") as f:
         json.dump(analysis, f, ensure_ascii=False, indent=2)

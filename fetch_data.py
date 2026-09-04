@@ -13,6 +13,7 @@ import json
 import subprocess
 import datetime
 import os
+import sys
 import time
 import urllib.request
 import concurrent.futures as cf
@@ -392,6 +393,29 @@ def main():
     print("拉取 NYSE/NASDAQ 涨跌家数...")
     adv_dec = fetch_adv_dec()
 
+    # 6) 多源 RSS 新闻（Yahoo/Bloomberg/WSJ/CNBC/MarketWatch/Seeking Alpha/Investing）
+    print("拉取多源 RSS 新闻...")
+    news_data = {}
+    try:
+        import subprocess
+        here = os.path.dirname(os.path.abspath(__file__))
+        r = subprocess.run(
+            [sys.executable, os.path.join(here, "fetch_news.py")],
+            capture_output=True, text=True, timeout=120)
+        # 解析 stdout 提取条数
+        for line in r.stdout.splitlines():
+            if line.startswith("  主题分布:"):
+                print(f"  [news] {line.strip()}")
+            elif "已写入" in line:
+                print(f"  [news] {line.strip()}")
+        # 读 news.json
+        news_path = os.path.join(here, "news.json")
+        if os.path.exists(news_path):
+            with open(news_path, encoding="utf-8") as f:
+                news_data = json.load(f)
+    except Exception as e:  # noqa: BLE001
+        print(f"  [news] 拉取失败: {e}")
+
     result = {
         "generated_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "d_latest": d_latest,
@@ -403,6 +427,7 @@ def main():
         "yf": yf_data,
         "options": options_data,
         "adv_dec": adv_dec,
+        "news": news_data,
     }
 
     out_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "market_data.json")
