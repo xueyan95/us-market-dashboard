@@ -6,8 +6,10 @@
 ## 流水线
 
 ```
-fetch_data.py（行情+财报+情绪）
-    → ai_analysis.py（SiliconFlow 研判 + yfinance 新闻上下文）
+should_notify.py（交易日/时段判断）
+    → fetch_news.py + fetch_data.py（新闻、行情、财报、持仓估值）
+    → validate_data.py（关键数据完整性）
+    → ai_analysis.py（只允许有 URL 证据的新闻卡片）
         → gen_dashboard.py（生成 index.html）
             → notify_telegram.py（Telegram 推送）
                 → deploy job → GitHub Pages（多端直接访问）
@@ -17,9 +19,9 @@ fetch_data.py（行情+财报+情绪）
 |---|---|---|
 | 行情 / RSI / 乖离率 | westock-data-clawhub（npm） | 无 |
 | 财报日历 | Nasdaq keyless API | 无 |
-| 指数 / VIX / 美债 / 黄金 / BTC | yfinance | 无 |
-| 近期新闻上下文 | yfinance `Ticker.news` | 无 |
-| AI 研判 + FedWatch | SiliconFlow（硅基流动，OpenAI 兼容） | **SILICONFLOW_API_KEY** |
+| 美股/A股指数 / VIX / 美债 / 黄金期货 / BTC | yfinance | 无 |
+| 近期新闻上下文 | 多源 RSS，yfinance 仅作兜底 | 无 |
+| AI 研判 + 利率环境摘要 | SiliconFlow（硅基流动，OpenAI 兼容） | **SILICONFLOW_API_KEY** |
 | Telegram 推送 | Telegram Bot API | **TELEGRAM_BOT_TOKEN** + **TELEGRAM_CHAT_ID**（可空，缺则静默跳过） |
 | 多端访问 | GitHub Pages（自动部署） | 仓库需 public |
 
@@ -67,42 +69,16 @@ fetch_data.py（行情+财报+情绪）
 ### 5. 触发方式
 
 - **手动**：Actions 页 → Daily US Market Dashboard → Run workflow
-- **自动**：每天 2 次（北京时间 08:00 收盘复盘、21:30 盘前速览）
+- **自动**：每天 2 次（北京时间 08:00 收盘复盘、21:00 夏令时/22:30 冬令时盘前速览）
 
 ### 6. 查看看板（任选其一）
 
 - **GitHub Pages**：直接访问 `https://<owner>.github.io/<repo>/`（推荐，无需登录）
 - **Artifacts**：每次运行后在 Actions 的 run 详情底部 → Artifacts → 下载 `us-market-dashboard` → 解压得 `index.html`（单文件、零外链、手机/电脑自适应、支持白天/夜间/跟随系统三态主题）
 
-## Telegram 推送效果预览
-
-```
-📊 美股 2026-09-03 收盘复盘（自动化）
-
-【一句话结论】
-美股今日普涨，主要受美联储官员偏鸽派言论导致美债收益率回落，
-以及 AI 领域重磅利好消息提振。英伟达收购 Hugging Face，OpenAI 发布
-GPT-6 Astra，博通上调 AI 业务指引，共同推动科技股和 AI 概念股走强…
-
-【三大指数】
-标普 7,748 (+1.06%) · 纳指 26,584 (+1.40%) · 道指 53,686 (+1.18%)
-
-【持仓 8 只】
-LAZR 41.09 (-1.3%) · INTC 91.67 (+1.8%) · APP 313.58 (-1.71%) · 
-BE 235.55 (+8.41%) · COHR 264.41 (-1.57%) · WOLF 26.84 (+0.71%) · 
-NBIS 210.63 (+3.2%) · NOW 145.59 (+6.49%)
-
-【FedWatch】加息 ≈50% / 维持 ≈50% / 降息 <1%
-【近期关注】明日（9月4日）将公布美国8月非农就业…
-```
-
 ## 修改持仓 / 观察股
 
-编辑 `portfolio_config.json`：
-- `holdings` —— 当前股票持仓/观察仓代码及 `core`、`watch` 分类
-- `option_underlyings` —— 需要跟踪期权 IV 与 P/C ratio 的标的
-
-该文件刻意不保存数量、成本价、账户余额或券商凭据，可安全用于公开仓库。更新一次后，行情抓取、AI 研判、HTML 看板和 Telegram 推送会同时使用新名单。
+Robinhood runtime snapshot 是真实持仓、期权和成本的唯一来源。`portfolio_config.json` 只保留观察名单及可选分类；snapshot 可用时不会用它覆盖真实持仓。
 
 ### Robinhood 仓位快照（公开展示模式）
 
@@ -112,9 +88,14 @@ NBIS 210.63 (+3.2%) · NOW 145.59 (+6.49%)
 
 > 你已选择公开展示这些数据：任何能访问 GitHub Pages 或看板构建产物的人都可能看到它们。该 Secret 是静态快照，不能自行从 Robinhood 更新。自动更新仍需一个受控的本地同步器或私有 API。绝不要将 Robinhood 用户名、密码、MFA、Cookie 或连接器令牌放进 GitHub Secrets。
 
-编辑 `fetch_data.py` 顶部：
-- `ALL_SYMS` —— 拉取行情的完整标的池（新持仓需同时确保在此列表）
-- `FOCUS` —— 财报日历过滤池
+新持仓会由 snapshot 自动加入行情抓取、AI、Telegram 和页面，不必再手工修改 `ALL_SYMS`。
+
+## 数据边界与历史
+
+- A 股当前只覆盖上证、深证、沪深300和创业板指数行情；没有可靠中文新闻源时，AI 不得补写 A 股事件。
+- 每次 Actions 运行保留 90 天 artifact，内含 HTML、原始市场数据、AI 输出和投资框架，可用于历史复盘。
+- `notes/` 提供交易前记录和周度复盘模板；`investment_framework.json` 保存风险规则与待验证命题。
+- Telegram 仅在持仓变化、持仓单日波动 ≥5% 或组合规则越界时推送；手动运行始终推送。
 
 编辑 `gen_dashboard.py` 顶部：
 - `LAYERS` —— AI 五层蛋糕分组

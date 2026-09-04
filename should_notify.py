@@ -26,6 +26,7 @@ import json
 import os
 import subprocess
 import sys
+from zoneinfo import ZoneInfo
 
 
 def is_us_dst(today):
@@ -96,6 +97,7 @@ def classify_slot(cron_hh, cron_mm, dst):
 
 
 def main():
+    override = os.environ.get("SLOT_OVERRIDE", "").strip()
     # 从 env 或 argv 取 cron
     slot_env = os.environ.get("SLOT_UTC", "")
     cron_hh, cron_mm = 0, 0
@@ -112,9 +114,9 @@ def main():
                 except Exception:
                     pass
 
-    today = datetime.datetime.now().date()
+    today = datetime.datetime.now(ZoneInfo("America/New_York")).date()
     dst = is_us_dst(today)
-    slot = classify_slot(cron_hh, cron_mm, dst)
+    slot = override if override in {"premarket", "postmarket"} else classify_slot(cron_hh, cron_mm, dst)
     print(f"today={today} DST={dst} cron=({cron_hh:02d}:{cron_mm:02d} UTC) → slot={slot}")
 
     if slot == "skip":
@@ -122,6 +124,17 @@ def main():
         result = {"slot": "skip", "reason": f"DST={dst} 时 cron {cron_hh:02d}:{cron_mm:02d} 不适用"}
         _emit(result)
         sys.exit(0)
+
+    try:
+        import exchange_calendars as xcals
+        if not xcals.get_calendar("XNYS").is_session(today.isoformat()):
+            _emit({"slot": "skip", "reason": f"{today} 不是 NYSE 交易日"})
+            return
+        if override or slot == "premarket":
+            _emit({"slot": slot, "reason": "exchange calendar confirmed", "dst": dst})
+            return
+    except Exception as exc:  # noqa: BLE001
+        print(f"[exchange calendar] 失败，退回 K 线判定: {exc}", file=sys.stderr)
 
     # 进一步判断今天是否是交易日（先读 fetch_data.py 写出的 market_data.json）
     last_d = last_trading_day_from_data() or last_trading_day_via_kline()

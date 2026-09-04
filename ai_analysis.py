@@ -23,13 +23,13 @@ import urllib.error
 import urllib.request
 
 import yfinance as yf
-from portfolio import holding_symbols, load_portfolio_config
+from portfolio import holding_symbols, load_effective_portfolio
 
 API_KEY = os.environ.get("SILICONFLOW_API_KEY", "")
 MODEL = os.environ.get("SF_MODEL", "Qwen/Qwen2.5-72B-Instruct")
 BASE = "https://api.siliconflow.cn/v1"
 
-PORTFOLIO_CONFIG = load_portfolio_config()
+PORTFOLIO_CONFIG = load_effective_portfolio()
 HOLDINGS = holding_symbols(PORTFOLIO_CONFIG)
 NEWS_TICKERS = ["^GSPC", "^IXIC", "NVDA", "AAPL", "MSFT", "TSLA", "GOOGL", "AMZN"]
 REPORT_SLOT = os.environ.get("REPORT_SLOT", "postmarket")
@@ -135,7 +135,9 @@ def build_prompt(m, news, news_source):
     for n in news:
         themes = "/".join(n.get("themes", [])) or "general"
         src = n.get("source", "?")
-        news_lines.append(f"- [{src}|{themes}] {n['title']}")
+        summary = str(n.get("summary", ""))[:260]
+        link = str(n.get("link", ""))
+        news_lines.append(f"- [{src}|{themes}] {n['title']}\n  摘要: {summary or '无'}\n  URL: {link or '无'}")
     news_text = "\n".join(news_lines) or "（暂无新闻）"
 
     # 利率预期面板（实时数据驱动 + AI 定性）
@@ -176,10 +178,10 @@ def build_prompt(m, news, news_source):
 【宏观/债市/商品】
 {chr(10).join(macro_lines) if macro_lines else '（暂无）'}
 
-【利率预期面板（实时数据）】
+【利率环境摘要（收盘数据；不是 CME FedWatch）】
 - 当前联邦基金目标区间：{fedwatch.get('current_range', '—')}
 - 下次 FOMC 决议：{fedwatch.get('next_meeting', '—')} {fedwatch.get('next_meeting_time', '')}
-- 收益率曲线 2s10s：{fedwatch.get('curve_2s10s', '—')} bp（正值=陡峭/扩张，负值=倒挂）
+- 收益率曲线 5s10s：{fedwatch.get('curve_5s10s_bp', '—')} bp（正值=陡峭，负值=倒挂）
 - 10Y 当日变动：{fedwatch.get('tnx_chg_pct', '—')}%
 - DXY 当日变动：{fedwatch.get('dxy_chg_pct', '—')}%
 - 已发布 CPI（最近一次）：{fedwatch.get('latest_cpi', {}).get('value', '—') if fedwatch.get('latest_cpi') else '—'}（{fedwatch.get('latest_cpi', {}).get('date', '—') if fedwatch.get('latest_cpi') else '暂无'}）
@@ -204,16 +206,16 @@ def build_prompt(m, news, news_source):
     "stance_reason": "定性判断理由（≤50 字）",
     "next_meeting": "{fedwatch.get('next_meeting', '—')} {fedwatch.get('next_meeting_time', '')}".strip(),
     "current_range": "{fedwatch.get('current_range', '—')}",
-    "curve_2s10s_bp": "{fedwatch.get('curve_2s10s', '—')}",
+    "curve_5s10s_bp": "{fedwatch.get('curve_5s10s_bp', '—')}",
     "latest_cpi": "{fedwatch.get('latest_cpi', {}).get('value', '—') if fedwatch.get('latest_cpi') else '—'}（{fedwatch.get('latest_cpi', {}).get('date', '—') if fedwatch.get('latest_cpi') else '—'}）",
     "latest_nfp": "{fedwatch.get('latest_nfp', {}).get('value', '—') if fedwatch.get('latest_nfp') else '—'}（{fedwatch.get('latest_nfp', {}).get('date', '—') if fedwatch.get('latest_nfp') else '—'}）",
-    "note": "本面板为定性判断（基于实时数据 + AI 综合），非 CME FedWatch 精确概率"
+    "note": "基于收盘行情和日历的定性摘要，不是 CME FedWatch 概率"
   }},
   "news_themes": [
     {{"theme": "主题名（如 央行政策 / AI芯片 / 地缘 / 公司财报 / 大宗商品）", "headline": "主题一句话概括", "items": [{{"title": "该主题下新闻标题", "source": "媒体源"}}], "takeaway": "对市场含义一句话"}}
   ],
   "news_cards": [
-    {{"category": "宏观·美联储", "title": "一句话标题", "key_data": "关键数字（含单位）", "impact": "因果或市场影响", "source": "Bloomberg/WSJ/CNBC"}}
+    {{"category": "宏观·美联储", "title": "必须忠实于输入标题", "key_data": "输入中确实出现的数字；没有则留空", "impact": "明确标注为推断", "source": "输入中的媒体源", "evidence_url": "输入中的原始URL", "evidence_type": "事实或推断"}}
   ],
   "news": [
     {{"title": "原始新闻标题（挑最重要 5-8 条）", "detail": "一句话要点", "source": "媒体源或 ticker"}}
@@ -224,7 +226,7 @@ def build_prompt(m, news, news_source):
 
 要求：
 - news_themes 给 4-6 个主题聚类，每个主题 items 限 2-4 条新闻标题，不要包含详细正文
-- news_cards 给 12-15 条结构化信息卡，覆盖以下类别：
+- news_cards 最多给 6 条，只保留与市场或当前持仓最重要且有原始 URL 的内容；不要求覆盖类别：
   ·【宏观·美联储/欧央行/利率】（鸽鹰表态、CPI/非农/PPI 解读、点阵图预期）
   ·【AI·并购/资本运作】（重大收购、定增、IPO）
   ·【AI·模型/产品发布】（GPT-6、Gemini、Claude、Sora 等新版本）
@@ -234,9 +236,9 @@ def build_prompt(m, news, news_source):
   ·【加密/避险】（BTC 涨跌、稳定币、黄金）
   ·【地缘/政治】（中东、俄乌、中美芯片战）
   ·【国内/中概】（A 股、H 股、中概回港）
-  每条卡片必须有【具体数字】（涨跌幅、价格、概率、估值、营收等可量化信息），并标注来源
+  不得为了凑类别或数字创造事件、来源、资金流或因果关系
 - news 给 5-8 条精选（跨主题）
-- 数字尽量来自提供的行情数据；新闻尽量来自上面多源上下文
+- 事实只能来自所提供的行情、标题、摘要和 URL；观点必须标为“推断”
 - 中文输出
 """
 
@@ -275,7 +277,7 @@ def call_siliconflow(prompt):
         for attempt in range(3):
             try:
                 text = _call(m, prompt)
-                return json.loads(text)
+                return json.loads(text), m
             except (urllib.error.HTTPError, urllib.error.URLError, json.JSONDecodeError, KeyError) as e:
                 last_err = e
                 print(f"  [{m}] 第{attempt + 1}次失败: {e}")
@@ -287,6 +289,33 @@ def call_siliconflow(prompt):
     raise RuntimeError(f"SiliconFlow 全部尝试失败，最后错误: {last_err}")
 
 
+def validate_grounding(analysis, news):
+    """Drop AI cards that cannot be traced to one of the supplied URLs."""
+    allowed_urls = {str(item.get("link", "")).strip() for item in news if item.get("link")}
+    allowed_sources = {str(item.get("source", "")).strip() for item in news if item.get("source")}
+    cards = []
+    for card in analysis.get("news_cards", [])[:6]:
+        url = str(card.get("evidence_url", "")).strip()
+        source = str(card.get("source", "")).strip()
+        if url in allowed_urls and source in allowed_sources:
+            card["evidence_type"] = "事实" if card.get("evidence_type") == "事实" else "推断"
+            cards.append(card)
+    analysis["news_cards"] = cards
+    allowed_pairs = {(str(item.get("title", "")).strip(), str(item.get("source", "")).strip())
+                     for item in news}
+    grounded_themes = []
+    for theme in analysis.get("news_themes", [])[:6]:
+        items = [item for item in theme.get("items", [])[:4]
+                 if (str(item.get("title", "")).strip(), str(item.get("source", "")).strip()) in allowed_pairs]
+        if items:
+            theme["items"] = items
+            grounded_themes.append(theme)
+    analysis["news_themes"] = grounded_themes
+    analysis["grounding"] = {"input_news": len(news), "verified_cards": len(cards),
+                              "verified_themes": len(grounded_themes)}
+    return analysis
+
+
 def main():
     if not API_KEY:
         print("缺少环境变量 SILICONFLOW_API_KEY，跳过 AI 研判")
@@ -295,7 +324,7 @@ def main():
             "conclusion": "（未配置 SILICONFLOW_API_KEY，跳过）",
             "q4_why_buy": "", "q4_when_sell": "", "q4_emotion": "5/10", "q4_worst": "",
             "fedwatch": {"stance": "—", "stance_reason": "", "next_meeting": "—",
-                         "current_range": "—", "curve_2s10s_bp": "—",
+                         "current_range": "—", "curve_5s10s_bp": "—",
                          "latest_cpi": "—", "latest_nfp": "—", "note": "未配置"},
             "news_themes": [], "news_cards": [], "news": [],
             "holdings_alert": "", "tomorrow_focus": "",
@@ -312,14 +341,16 @@ def main():
     prompt = build_prompt(m, news, news_source)
     print(f"调用 SiliconFlow（{MODEL}）做 AI 研判...")
     try:
-        analysis = call_siliconflow(prompt)
+        analysis, actual_model = call_siliconflow(prompt)
+        analysis = validate_grounding(analysis, news)
     except Exception as e:  # noqa: BLE001
         print(f"SiliconFlow 调用失败: {e}")
+        actual_model = None
         analysis = {
             "conclusion": "（SiliconFlow 调用失败，见日志）",
             "q4_why_buy": "", "q4_when_sell": "", "q4_emotion": "5/10", "q4_worst": "",
             "fedwatch": {"stance": "—", "stance_reason": "", "next_meeting": "—",
-                         "current_range": "—", "curve_2s10s_bp": "—",
+                         "current_range": "—", "curve_5s10s_bp": "—",
                          "latest_cpi": "—", "latest_nfp": "—", "note": ""},
             "news_themes": [], "news_cards": [], "news": [],
             "holdings_alert": "", "tomorrow_focus": "",
@@ -327,7 +358,7 @@ def main():
         }
 
     analysis["generated_at"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    analysis["model"] = MODEL
+    analysis["model"] = actual_model
     analysis["news_source"] = news_source
     analysis["report_slot"] = REPORT_SLOT
     analysis["report_label"] = REPORT_LABEL

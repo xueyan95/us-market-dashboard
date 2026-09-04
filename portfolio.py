@@ -31,3 +31,40 @@ def holding_names(config):
 
 def option_underlyings(config):
     return [str(symbol).upper().strip() for symbol in config.get("option_underlyings", [])]
+
+
+def load_effective_portfolio(path=CONFIG_PATH):
+    """Use the runtime broker snapshot as the source of truth for positions.
+
+    The checked-in config remains a watch-list/classification fallback only.
+    Quantities and costs never need to be duplicated in Git.
+    """
+    config = load_portfolio_config(path)
+    try:
+        from portfolio_snapshot import load_portfolio_snapshot
+        snapshot = load_portfolio_snapshot()
+    except (ImportError, OSError, ValueError):
+        snapshot = {"available": False}
+    if not snapshot.get("available"):
+        return config
+
+    metadata = {str(x["symbol"]).upper(): x for x in config.get("holdings", [])}
+    symbols = []
+    for item in snapshot.get("equities", []):
+        symbol = str(item.get("symbol", "")).upper().strip()
+        if symbol and symbol not in symbols:
+            symbols.append(symbol)
+    holdings = []
+    for symbol in symbols:
+        row = dict(metadata.get(symbol, {}))
+        row["symbol"] = symbol
+        row.setdefault("bucket", "current")
+        holdings.append(row)
+
+    underlyings = []
+    for item in snapshot.get("options", []):
+        symbol = str(item.get("underlying", "")).upper().strip()
+        if symbol and symbol not in underlyings:
+            underlyings.append(symbol)
+    return {**config, "holdings": holdings, "option_underlyings": underlyings,
+            "position_source": "runtime_snapshot"}

@@ -10,7 +10,18 @@ on:
     - cron: '0 13 * * *'
     # 22:00 CST = 14:30 UTC — 盘前（冬令时 11月初-3月初）
     - cron: '30 14 * * *'
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      report_slot:
+        description: Report type for a manual run
+        required: true
+        default: postmarket
+        type: choice
+        options: [postmarket, premarket]
+
+concurrency:
+  group: us-market-dashboard-pages
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -18,6 +29,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     outputs:
       slot_json: ${{ steps.slot.outputs.slot_json }}
     steps:
@@ -34,6 +46,13 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Restore prior dashboard state
+        uses: actions/cache@v4
+        with:
+          path: .state
+          key: dashboard-state-${{ github.run_id }}
+          restore-keys: dashboard-state-
+
       - name: Cache npx package (westock-data-clawhub)
         uses: actions/cache@v4
         with:
@@ -41,12 +60,21 @@ jobs:
           key: npx-westock-1.0.4
 
       - name: Install Python deps
-        run: pip install yfinance feedparser
+        run: pip install -r requirements.txt
+
+      - name: Decide report slot (DST + exchange calendar)
+        id: slot
+        env:
+          SLOT_UTC: ${{ github.event.schedule }}
+          SLOT_OVERRIDE: ${{ inputs.report_slot }}
+        run: python should_notify.py
 
       - name: Fetch RSS news (multi-source)
+        if: ${{ fromJSON(steps.slot.outputs.slot_json).slot != 'skip' }}
         run: python fetch_news.py
 
       - name: Materialize Robinhood portfolio snapshot
+        if: ${{ fromJSON(steps.slot.outputs.slot_json).slot != 'skip' }}
         env:
           PORTFOLIO_SNAPSHOT_B64: ${{ secrets.PORTFOLIO_SNAPSHOT_B64 }}
         run: |
@@ -58,13 +86,16 @@ jobs:
           fi
 
       - name: Fetch market data
+        if: ${{ fromJSON(steps.slot.outputs.slot_json).slot != 'skip' }}
         run: python fetch_data.py
 
-      - name: Decide notify slot (DST + trading day check)
-        id: slot
-        env:
-          SLOT_UTC: ${{ github.event.schedule }}
-        run: python should_notify.py
+      - name: Validate dashboard inputs
+        if: ${{ fromJSON(steps.slot.outputs.slot_json).slot != 'skip' }}
+        run: python validate_data.py
+
+      - name: Run unit tests
+        if: ${{ fromJSON(steps.slot.outputs.slot_json).slot != 'skip' }}
+        run: python -m unittest discover -s tests -v
 
       - name: Set report slot
         if: ${{ fromJSON(steps.slot.outputs.slot_json).slot != 'skip' }}
@@ -85,8 +116,13 @@ jobs:
           REPORT_SLOT: ${{ env.REPORT_SLOT }}
         run: python gen_dashboard.py
 
-      - name: Notify Telegram
+      - name: Detect meaningful changes
+        id: changes
         if: ${{ fromJSON(steps.slot.outputs.slot_json).slot != 'skip' }}
+        run: python change_detection.py
+
+      - name: Notify Telegram
+        if: ${{ fromJSON(steps.slot.outputs.slot_json).slot != 'skip' && (steps.changes.outputs.actionable == 'true' || github.event_name == 'workflow_dispatch') }}
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -98,8 +134,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: us-market-dashboard
-          path: index.html
+          path: |
+            index.html
+            market_data.json
+            analysis.json
+            investment_framework.json
           if-no-files-found: error
+          retention-days: 90
 
   deploy:
     needs: build
@@ -112,7 +153,6 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     # Pages 未启用时优雅降级——不阻塞 build 产物，提示用户去 Settings → Pages 启用
     # 节假日 slot=skip 时也不部署（无新产物）
-    continue-on-error: true
     if: ${{ fromJSON(needs.build.outputs.slot_json).slot != 'skip' }}
     steps:
       - name: Setup Pages

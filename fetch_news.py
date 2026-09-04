@@ -21,6 +21,8 @@ import json
 import os
 import re
 import time
+import urllib.request
+import concurrent.futures as cf
 from urllib.parse import urlparse
 
 import feedparser
@@ -89,7 +91,10 @@ def classify_theme(title: str, summary: str = "") -> list:
 def fetch_rss(source, url, limit=5, timeout=15):
     """单源 RSS 抓取。失败返回 []."""
     try:
-        f = feedparser.parse(url, agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)")
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            payload = response.read()
+        f = feedparser.parse(payload)
         if f.bozo and not f.entries:
             print(f"  [{source}] 解析异常: {f.bozo_exception}", flush=True)
             return []
@@ -185,8 +190,11 @@ def main():
     items = []
     source_dist = {}
 
-    for source, url, limit, lang in RSS_SOURCES:
-        got = fetch_rss(source, url, limit=limit)
+    with cf.ThreadPoolExecutor(max_workers=6) as pool:
+        futures = [(source, lang, pool.submit(fetch_rss, source, url, limit))
+                   for source, url, limit, lang in RSS_SOURCES]
+    for source, lang, future in futures:
+        got = future.result()
         for g in got:
             g["lang"] = lang
         print(f"  {source}: {len(got)} 条")

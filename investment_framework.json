@@ -1,0 +1,35 @@
+{
+  "guardrails": {
+    "cash_floor_pct": 10,
+    "single_position_max_pct": 25,
+    "options_max_pct": 25,
+    "emotion_cooldown_score": 7,
+    "cooldown_hours": 24
+  },
+  "theses": [
+    {
+      "id": "ai-capex-funding",
+      "title": "Hyperscaler AI CAPEX 与融资压力",
+      "status": "待验证",
+      "hypothesis": "CAPEX 增速可能持续快于新增现金流，较高融资成本会压低 AI 基建 ROIC。",
+      "verify": ["季度 CAPEX/经营现金流", "自由现金流趋势", "债券发行规模与利差", "管理层 ROIC 指引"],
+      "disconfirm": "主要 hyperscaler 自由现金流重新覆盖 CAPEX，且单位算力收入和 ROIC 持续改善。"
+    },
+    {
+      "id": "intc-cpu-foundry",
+      "title": "INTC：CPU 需求与晶圆厂价值",
+      "status": "待验证",
+      "hypothesis": "Agentic AI 可能推升 2027 年后的 CPU 需求，代工资产价值可能未被充分计价。",
+      "verify": ["数据中心 CPU 订单/份额", "18A 外部客户与良率", "Foundry 亏损收窄", "净资本开支与现金消耗"],
+      "disconfirm": "18A 客户或良率里程碑持续延迟、Foundry 现金消耗扩大、CPU 份额继续下滑。"
+    },
+    {
+      "id": "semi-deleveraging",
+      "title": "半导体去杠杆是否结束",
+      "status": "待验证",
+      "hypothesis": "急跌后的反弹可能包含空头回补，尚不能单独证明基本面风险已经出清。",
+      "verify": ["成交量与市场宽度", "信用利差", "SMH 相对强弱", "盈利预期修正"],
+      "disconfirm": "反弹由盈利预期上修和持续增量资金共同确认，而非短期回补。"
+    }
+  ]
+}

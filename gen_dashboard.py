@@ -10,7 +10,7 @@ import json
 import os
 import datetime
 import html as _html
-from portfolio import holding_names, holding_symbols, load_portfolio_config, option_underlyings
+from portfolio import holding_names, holding_symbols, load_effective_portfolio, option_underlyings
 from portfolio_snapshot import load_portfolio_snapshot
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -23,7 +23,7 @@ def esc(s):
     return _html.escape(str(s), quote=True)
 
 # ---------------- 持仓与五层蛋糕分组（黄仁勋框架） ----------------
-PORTFOLIO_CONFIG = load_portfolio_config()
+PORTFOLIO_CONFIG = load_effective_portfolio()
 HOLDINGS = holding_symbols(PORTFOLIO_CONFIG, market_prefix=True)
 HOLD_NAME = holding_names(PORTFOLIO_CONFIG)
 OPTION_UNDERLYINGS = option_underlyings(PORTFOLIO_CONFIG)
@@ -57,6 +57,7 @@ MATRIX_LAYERS = [
     ("② 芯片", ["usNVDA", "usAMD", "usTSM", "usAVGO", "usMU", "usARM", "usASML", "usAMAT", "usMRVL", "usINTC", "usWOLF"]),
     ("① 能源", ["usVST", "usCEG", "usGEV", "usBE", "usOKLO"]),
 ]
+LAYER_SYMBOLS = {symbol for _, _, cats in LAYERS for _, symbols in cats for symbol in symbols}
 
 TREND_LABELS = [("1日", "chg_pct"), ("1周", "p1w"), ("1月", "p1m"), ("3月", "p3m")]
 
@@ -80,6 +81,7 @@ def load_json(name):
 
 M = load_json("market_data.json")
 A = load_json("analysis.json")
+FRAMEWORK = load_json("investment_framework.json")
 
 QUOTES = M.get("quotes", {})
 SENT = M.get("sentiment", {})
@@ -98,6 +100,7 @@ DATA_BASIS = (
 # 用 naive datetime.now() 会把 UTC 时间错标为"北京时间"，提前 8 小时
 CST = datetime.timezone(datetime.timedelta(hours=8))
 GEN_TIME = datetime.datetime.now(CST).strftime("%Y-%m-%d %H:%M") + "（北京时间）"
+HEALTH = M.get("data_health", {})
 
 
 def get(sym):
@@ -336,11 +339,17 @@ macro_items = [
     yf_item("10年期美债收益率", "tnx", 4, suffix="%"),
     yf_item("30年期美债收益率", "tyx", 4, suffix="%"),
     yf_item("VIX 恐慌指数", "vix", 2),
-    yf_item("现货黄金", "gold", 1, prefix="$"),
+    yf_item("黄金期货", "gold", 1, prefix="$"),
     yf_item("WTI 原油", "wti", 2, prefix="$"),
     yf_item("BTC 比特币", "btc", 0, prefix="$"),
 ]
 macro_kv = "".join(x for x in macro_items if x)
+
+china_items = [
+    yf_item("上证指数", "sse", 2), yf_item("深证成指", "szse", 2),
+    yf_item("沪深300", "csi300", 2), yf_item("创业板指", "chinext", 2),
+]
+china_kv = "".join(x for x in china_items if x)
 
 # 财报日历（未来几天 FOCUS 相关）
 earnings = M.get("earnings", {})
@@ -425,12 +434,13 @@ for it in raw_news[:12]:
     title = esc(str(it.get("title", "")))
     summary = esc(str(it.get("summary", "")[:120]))
     src = esc(str(it.get("source", "")))
+    link = esc(str(it.get("link", "")))
     pub = it.get("published", "")
     if pub:
         pub = esc(str(pub[5:16].replace("T", " ")))  # MM-DD HH:MM
     raw_news_html += (
         f'<div class="news-card">'
-        f'<div class="news-title">{title}</div>'
+        f'<div class="news-title">{f"<a href=\"{link}\" target=\"_blank\" rel=\"noopener\">{title}</a>" if link else title}</div>'
         f'<div class="news-meta"><span class="src">[{src}]</span> {pub}</div>'
         + (f'<div class="news-sum">{summary}…</div>' if summary else '')
         + '</div>'
@@ -445,6 +455,8 @@ for i, c in enumerate(news_cards[:15]):
     key_data = esc(str(c.get("key_data", "")))
     impact = esc(str(c.get("impact", "")))
     src = esc(str(c.get("source", "")))
+    url = esc(str(c.get("evidence_url", "")))
+    evidence_type = esc(str(c.get("evidence_type", "推断")))
     news_cards_html += (
         f'<div class="info-card">'
         f'<div class="info-hd"><span class="info-cat">{cat}</span>'
@@ -452,7 +464,7 @@ for i, c in enumerate(news_cards[:15]):
         f'<div class="info-title">{title}</div>'
         + (f'<div class="info-data">📊 {key_data}</div>' if key_data else '')
         + (f'<div class="info-imp">💡 {impact}</div>' if impact else '')
-        + (f'<div class="info-src">[{src}]</div>' if src else '')
+        + (f'<div class="info-src">[{evidence_type}] <a href="{url}" target="_blank" rel="noopener">{src}</a></div>' if src and url else '')
         + '</div>'
     )
 
@@ -537,16 +549,24 @@ def private_portfolio_panel():
     equity_rows = "".join(
         f'<tr><td><b>{esc(item.get("symbol", "—"))}</b></td><td>{float(item.get("quantity") or 0):g}</td>'
         f'<td>{money(float(item.get("average_cost") or 0))}</td><td>{maybe_money(item.get("current_price"))}</td>'
-        f'<td>{maybe_money(item.get("market_value"))}</td><td>{maybe_money(item.get("unrealized_pnl"))} · {maybe_pct(item.get("unrealized_pnl_pct"))}</td></tr>'
+        f'<td>{maybe_money(item.get("market_value"))}</td><td>{maybe_pct(item.get("weight_pct"))}</td>'
+        f'<td>{maybe_money(item.get("unrealized_pnl"))} · {maybe_pct(item.get("unrealized_pnl_pct"))}</td></tr>'
         for item in PRIVATE_SNAPSHOT.get("equities", [])
     ) or '<tr><td colspan="6" class="muted">暂无股票仓位</td></tr>'
-    option_rows = "".join(
-        f'<tr><td><b>{esc(item.get("underlying", "—"))}</b> {esc(item.get("type", ""))} {float(item.get("strike") or 0):g}</td>'
-        f'<td>{esc(item.get("expiration_date", "—"))}</td><td>{float(item.get("quantity") or 0):g}</td>'
-        f'<td>{money(float(item.get("average_price") or 0))}</td><td>{maybe_money(item.get("current_price"))}</td>'
-        f'<td>{maybe_money(item.get("market_value"))}</td><td>{maybe_money(item.get("unrealized_pnl"))} · {maybe_pct(item.get("unrealized_pnl_pct"))}</td></tr>'
-        for item in PRIVATE_SNAPSHOT.get("options", [])
-    ) or '<tr><td colspan="7" class="muted">暂无期权仓位</td></tr>'
+    def option_row(item):
+        greek = (f'{float(item["delta_est"]):+.2f} / {float(item["theta_daily_est"]):+.2f}'
+                 if item.get("delta_est") is not None else "—")
+        iv = float(item["implied_volatility"]) * 100 if item.get("implied_volatility") is not None else None
+        return (
+            f'<tr><td><b>{esc(item.get("underlying", "—"))}</b> {esc(item.get("type", ""))} {float(item.get("strike") or 0):g}</td>'
+            f'<td>{esc(item.get("expiration_date", "—"))}</td><td>{float(item.get("quantity") or 0):g}</td>'
+            f'<td>{money(float(item.get("average_price") or 0))}</td><td>{maybe_money(item.get("current_price"))}</td>'
+            f'<td>{esc(item.get("dte", "—"))}</td><td>{maybe_pct(item.get("spread_pct"))}</td>'
+            f'<td>{maybe_pct(iv)}</td><td>{greek}</td>'
+            f'<td>{maybe_money(item.get("market_value"))} · {maybe_pct(item.get("weight_pct"))}</td>'
+            f'<td>{maybe_money(item.get("unrealized_pnl"))} · {maybe_pct(item.get("unrealized_pnl_pct"))}</td></tr>')
+    option_rows = "".join(option_row(item) for item in PRIVATE_SNAPSHOT.get("options", [])) \
+        or '<tr><td colspan="11" class="muted">暂无期权仓位</td></tr>'
     return f'''<div class="kv">
       <div class="it"><div class="k">账户净值</div><div class="v">{maybe_money(total)}</div></div>
       <div class="it"><div class="k">现金 / 净值</div><div class="v">{money(cash)} · {pct(cash)}</div></div>
@@ -554,12 +574,37 @@ def private_portfolio_panel():
       <div class="it"><div class="k">期权 / 净值</div><div class="v">{money(options_value)} · {pct(options_value)}</div></div>
     </div><div class="note">持仓更新时间：{esc(PRIVATE_SNAPSHOT.get("as_of", "—"))}；价格计算时间：{esc(valuation.get("as_of", "—"))}。价格由 GitHub Actions 每次运行重新拉取；若任一合约缺少报价，账户净值显示为 —；公开展示由你授权。</div>
     <h3 style="margin-top:16px;font-size:13.5px;color:var(--accent)">股票明细</h3>
-    <table><tr><th>代码</th><th>数量</th><th>平均成本</th><th>现价</th><th>市值</th><th>浮盈亏</th></tr>{equity_rows}</table>
+    <div class="table-wrap"><table><tr><th>代码</th><th>数量</th><th>平均成本</th><th>现价</th><th>市值</th><th>权重</th><th>浮盈亏</th></tr>{equity_rows}</table></div>
     <h3 style="margin-top:16px;font-size:13.5px;color:var(--accent)">期权明细</h3>
-    <table><tr><th>合约</th><th>到期</th><th>数量</th><th>平均成本/张</th><th>现价</th><th>市值</th><th>浮盈亏</th></tr>{option_rows}</table>'''
+    <div class="table-wrap"><table><tr><th>合约</th><th>到期</th><th>数量</th><th>平均成本/张</th><th>现价</th><th>DTE</th><th>买卖价差</th><th>IV</th><th>Δ / 每日Θ</th><th>市值·权重</th><th>浮盈亏</th></tr>{option_rows}</table></div>
+    <div class="note">Greeks 为 Black-Scholes 估算（无股息、无风险利率假设 4%），用于风险方向参考；报价、IV 与流动性仍以券商为准。</div>'''
 
 
 private_panel = private_portfolio_panel()
+
+
+def decision_cockpit():
+    snapshot = PRIVATE_SNAPSHOT if PRIVATE_SNAPSHOT.get("available") else {}
+    risk = snapshot.get("risk", {})
+    rules = FRAMEWORK.get("guardrails", {})
+    alerts = []
+    if risk.get("cash_pct") is not None and risk["cash_pct"] < rules.get("cash_floor_pct", 0):
+        alerts.append(f"现金 {risk['cash_pct']:.1f}% < 规则 {rules.get('cash_floor_pct')}%")
+    if risk.get("options_pct") is not None and risk["options_pct"] > rules.get("options_max_pct", 100):
+        alerts.append(f"期权 {risk['options_pct']:.1f}% > 规则 {rules.get('options_max_pct')}%")
+    if risk.get("largest_position_pct") is not None and risk["largest_position_pct"] > rules.get("single_position_max_pct", 100):
+        alerts.append(f"最大仓位 {risk['largest_position_pct']:.1f}% > 规则 {rules.get('single_position_max_pct')}%")
+    thesis_rows = "".join(
+        f'<tr><td><b>{esc(t.get("title"))}</b></td><td>{esc(t.get("status"))}</td>'
+        f'<td>{esc("；".join(t.get("verify", [])[:3]))}</td><td>{esc(t.get("disconfirm"))}</td></tr>'
+        for t in FRAMEWORK.get("theses", []))
+    return f'''<div class="kv">
+      <div class="it"><div class="k">现金</div><div class="v">{risk.get("cash_pct", "—")}%</div></div>
+      <div class="it"><div class="k">期权</div><div class="v">{risk.get("options_pct", "—")}%</div></div>
+      <div class="it"><div class="k">最大单仓</div><div class="v">{risk.get("largest_position_pct", "—")}%</div></div>
+      <div class="it"><div class="k">半导体股票</div><div class="v">{risk.get("semiconductor_equity_pct", "—")}%</div></div>
+    </div><div class="risk-alert">{esc("；".join(alerts) if alerts else "未触发已配置的组合规则")}</div>
+    <div class="table-wrap"><table><tr><th>待验证命题</th><th>状态</th><th>下一步验证</th><th>证伪条件</th></tr>{thesis_rows}</table></div>'''
 
 
 # ================= CSS =================
@@ -698,6 +743,12 @@ td .rsi-lbl{color:inherit}
 .heat-matrix .num{font-weight:600;font-variant-numeric:tabular-nums}
 .foot{color:var(--sub);font-size:11.5px;text-align:center;margin-top:26px;padding:0 14px}
 .src{color:var(--sub);font-size:11px}
+.table-wrap{overflow-x:auto}
+.card>table{display:block;overflow-x:auto}
+.risk-alert{margin:10px 0;padding:9px 12px;border-left:3px solid var(--gold);background:var(--card2);font-size:12px}
+.health{border-radius:10px;padding:9px 12px;margin-top:10px;font-size:12px;background:rgba(10,158,110,.12);border:1px solid rgba(10,158,110,.35)}
+.health.degraded{background:rgba(246,195,77,.12);border-color:rgba(246,195,77,.45)}
+a{color:var(--accent)}
 @media(max-width:640px){
  .grid4{grid-template-columns:repeat(2,1fr)}
  .kv{grid-template-columns:repeat(2,1fr)}
@@ -729,11 +780,18 @@ body = f"""
       <button class="tt-btn" data-theme="dark">夜间</button>
     </div>
   </div>
-  <div class="meta">生成：{GEN_TIME} · {DATA_BASIS} · 涨红跌绿（中国习惯）· 数据源：westockdata / Nasdaq / yfinance / SiliconFlow（Qwen2.5-72B）</div>
+  <div class="meta">生成：{GEN_TIME} · {DATA_BASIS} · 涨红跌绿（中国习惯）· 数据源：westockdata / Nasdaq / yfinance / SiliconFlow</div>
+  <div class="health {'degraded' if HEALTH.get('status') != 'ok' else ''}">数据健康：{esc(HEALTH.get('status','unknown'))} · 行情 {HEALTH.get('quote_count','—')} 只 · 必需标的缺失涨跌幅：{esc(', '.join(HEALTH.get('missing_change', [])) or '无')} · 持仓快照：{esc(HEALTH.get('portfolio_as_of') or '未载入')}（{esc(HEALTH.get('portfolio_age_hours','—'))} 小时前）· 新闻：{esc(HEALTH.get('news_as_of') or '未载入')}</div>
 </header>
 
 <div class="card">
-  <h2>① AI 研判 <span class="tag">SiliconFlow · Qwen2.5-72B</span></h2>
+  <h2>决策驾驶舱 <span class="tag">组合规则 + Thesis 验证</span></h2>
+  <div class="sec-desc">优先显示与你持仓直接相关的风险；命题是待验证假设，不是既定事实。</div>
+  {decision_cockpit()}
+</div>
+
+<div class="card">
+  <h2>① AI 研判 <span class="tag">SiliconFlow · {esc(A.get('model') or '未启用')}</span></h2>
   <div class="concl">{concl}</div>
   <div class="q4">
     <div><b>① 为什么买？</b> {q4[0]}</div>
@@ -748,13 +806,19 @@ body = f"""
   <div class="grid4">{idx_html}</div>
   <h2 style="font-size:13.5px;margin-top:16px">市场宽度 · 涨跌家数 <span class="tag">A/D ratio</span></h2>
   <div class="ad-grid">{ad_html}</div>
-  <div class="note">标普/纳指/道指/罗素 + DXY：来源 yfinance（纳指优先用 QQQ ETF 价格）；涨跌家数：StockAnalysis 实时 NYSE/NASDAQ 全量股票分桶计算，{D_LATEST}。</div>
+  <div class="note">指数与 DXY：来源 yfinance；市场宽度是 30 只 NYSE + 30 只 NASDAQ 代表性大盘股的方向代理，不代表交易所全量，{D_LATEST}。</div>
 </div>
 
 <div class="card">
   <h2>③ 宏观数据 <span class="tag">债市 / 商品</span></h2>
   <div class="kv">{macro_kv or '<div class="it"><div class="k">暂无</div><div class="v">—</div></div>'}</div>
-  <div class="note">来源：yfinance（^TNX/^TYX/^VIX/GC=F/CL=F/BTC-USD），{D_LATEST} 收盘。联邦基金目标区间与 FedWatch 概率见「利率预期」模块。</div>
+  <div class="note">来源：yfinance（^TNX/^TYX/^VIX/GC=F/CL=F/BTC-USD），{D_LATEST} 收盘。GC=F 为黄金期货，不是现货金。</div>
+</div>
+
+<div class="card">
+  <h2>A 股核心指数 <span class="tag">指数行情 · 独立口径</span></h2>
+  <div class="kv">{china_kv or '<div class="it"><div class="k">暂无</div><div class="v">—</div></div>'}</div>
+  <div class="note">来源 yfinance 的上证、深证、沪深300、创业板指数日线。当前只接入可核验行情；未接入可靠中文新闻源前，AI 不生成 A 股事件或因果结论。</div>
 </div>
 
 <div class="card">
@@ -780,6 +844,7 @@ body = f"""
   {layer(*LAYERS[2])}
   {layer(*LAYERS[3])}
   {layer(*LAYERS[4])}
+  {layer("当前其他持仓", "由 Robinhood 快照自动加入，尚未配置主题分类", [("未分类", sorted(HOLD_SET - LAYER_SYMBOLS))]) if HOLD_SET - LAYER_SYMBOLS else ""}
   <h2 style="font-size:13.5px;margin-top:20px">趋势热力矩阵 <span class="tag">1日 / 1周 / 1月 / 3月</span></h2>
   <div class="sec-desc">行=个股（按五层分组），列=多周期涨跌幅；背景色块深浅=幅度，红=涨、绿=跌。数据：westockdata 70 日K线，截至 {D_LATEST}。</div>
   {heat_matrix()}
@@ -788,7 +853,7 @@ body = f"""
 <div class="card">
   <h2>⑥ 重要信息 <span class="tag">AI 提炼 · {len(news_cards)} 张信息卡</span></h2>
 
-  <div class="sec-desc">基于 RSS 多源新闻（已分类主题），由 SiliconFlow 提炼 {len(news_cards)} 张结构化信息卡：每张含【类别·子类别】+ 关键数字 + 因果 + 来源。下方为全部 RSS 原文（{raw_news_count} 条 / {len(sources_dist)} 个源）。</div>
+  <div class="sec-desc">仅展示能追溯到输入 RSS URL 的 AI 卡片；“事实/推断”分开标记。未覆盖某类别表示证据不足，而不是遗漏。下方为 RSS 原文（{raw_news_count} 条 / {len(sources_dist)} 个源）。</div>
 
   <div class="info-grid">{news_cards_html}</div>
 
@@ -801,11 +866,11 @@ body = f"""
 </div>
 
 <div class="card">
-  <h2>⑦ 利率预期 <span class="tag">实时数据 + AI 定性</span></h2>
+  <h2>⑦ 利率环境 <span class="tag">收盘数据 + AI 定性</span></h2>
   <div class="sec-desc">
-    当前联邦基金目标区间：<b>{fw.get("current_range","—")}</b>；
+    官方目标区间：<b>{fw.get("current_range","—")}</b>；
     下次 FOMC：<b>{fw.get("next_meeting","—")} {fw.get("next_meeting_time","")}</b>；
-    收益率曲线 2s10s：<b>{fw.get("curve_2s10s_bp","—")} bp</b>
+    收益率曲线 5s10s：<b>{fw.get("curve_5s10s_bp","—")} bp</b>
     （正值=陡峭扩张 / 负值=倒挂）。
   </div>
   <div class="kv kv-fedwatch">
@@ -823,7 +888,7 @@ body = f"""
     </div>
     <div class="it">
       <div class="k">曲线 / 10Y</div>
-      <div class="v" style="font-size:14px">{fw.get("curve_2s10s_bp","—")}bp / {fede_tnx_str}</div>
+      <div class="v" style="font-size:14px">{fw.get("curve_5s10s_bp","—")}bp / {fede_tnx_str}</div>
     </div>
   </div>
   <div class="note"><b>立场理由</b>：{fw.get("stance_reason","") or "—"}</div>
@@ -848,7 +913,7 @@ body = f"""
 </div>
 
 <div class="card">
-  <h2>⑨ 持仓期权信号 <span class="tag">IV / P-C ratio · 配置的期权标的</span></h2>
+  <h2>⑨ 标的短期期权环境 <span class="tag">ATM IV / 全链 P-C · 非持仓合约风险</span></h2>
   <div class="sec-desc">隐含波动率 (IV) 反映市场对后续波动的预期；P/C ratio（用 OI 计算）> 1 偏看跌，&lt; 0.7 偏看涨。来源：yfinance option_chain，取 14-45 DTE 到期日。失败/无数据项显示 —。</div>
   {opt_html or '<div class="note">暂无期权数据</div>'}
 </div>

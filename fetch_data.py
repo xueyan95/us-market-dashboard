@@ -17,7 +17,8 @@ import sys
 import time
 import urllib.request
 import concurrent.futures as cf
-from portfolio import holding_names, holding_symbols, load_portfolio_config, option_underlyings
+import math
+from portfolio import holding_names, holding_symbols, load_effective_portfolio, option_underlyings
 from portfolio_snapshot import load_portfolio_snapshot, snapshot_equity_symbols
 
 # ---------------- 配置 ----------------
@@ -29,12 +30,12 @@ ALL_SYMS = (
     "usCRM,usPLTR,usADBE,usCRWD,usAAPL,usTSLA,usVST,usCEG,usGEV,usBE,usOKLO,usNOK,usAEHR,"
     "usCOHX,usNBIL,usNOWL,usBEX,usAPPX"
 )
-PORTFOLIO_CONFIG = load_portfolio_config()
+PORTFOLIO_CONFIG = load_effective_portfolio()
 HOLDINGS = holding_symbols(PORTFOLIO_CONFIG, market_prefix=True)
 HOLD_NAME = holding_names(PORTFOLIO_CONFIG)
 OPTION_UNDERLYINGS = option_underlyings(PORTFOLIO_CONFIG)
 
-# A/D 涨跌家数自算样本：60 只代表性头部股票（覆盖 90%+ 市值）
+# A/D 涨跌家数代理样本：60 只代表性大盘股；不代表交易所全量宽度。
 AD_SYMS_NYSE = [
     # 金融 10
     "JPM", "BAC", "WFC", "C", "GS", "MS", "BLK", "AXP", "V", "MA",
@@ -210,6 +211,9 @@ def fetch_yf():
             # 宏观 / 商品 / 加密
             "vix": "^VIX", "tnx": "^TNX", "tyx": "^TYX", "fvx": "^FVX",
             "gold": "GC=F", "wti": "CL=F", "btc": "BTC-USD",
+            # A 股核心指数（仅行情，不让 AI 在无新闻证据时补写事件）
+            "sse": "000001.SS", "szse": "399001.SZ",
+            "csi300": "000300.SS", "chinext": "399006.SZ",
         }
         for k, t in tickers.items():
             for attempt in range(2):
@@ -290,6 +294,9 @@ def fetch_options_one(sym):
         put_oi = int(puts["openInterest"].fillna(0).sum()) if "openInterest" in puts.columns else 0
         pc_vol = round(put_vol / call_vol, 2) if call_vol > 0 else None
         pc_oi = round(put_oi / call_oi, 2) if call_oi > 0 else None
+        iv = _num(row.get("impliedVolatility"))
+        if iv is not None and not 0.05 <= iv <= 5:
+            iv = None
         return {
             "expiry": target,
             "last": round(last, 2) if last is not None else None,
@@ -328,6 +335,25 @@ def _num(value):
         return None
 
 
+def option_greeks(spot, strike, dte, iv, option_type, rate=0.04):
+    """Black-Scholes estimate; rate is an explicit approximation, not a broker Greek."""
+    if not all(x is not None and x > 0 for x in (spot, strike, dte, iv)):
+        return {}
+    t = dte / 365
+    d1 = (math.log(spot / strike) + (rate + iv * iv / 2) * t) / (iv * math.sqrt(t))
+    d2 = d1 - iv * math.sqrt(t)
+    cdf = lambda x: (1 + math.erf(x / math.sqrt(2))) / 2
+    pdf = lambda x: math.exp(-x * x / 2) / math.sqrt(2 * math.pi)
+    delta = cdf(d1) if option_type == "call" else cdf(d1) - 1
+    theta_year = -(spot * pdf(d1) * iv) / (2 * math.sqrt(t))
+    theta_year += (-rate * strike * math.exp(-rate * t) * cdf(d2) if option_type == "call"
+                   else rate * strike * math.exp(-rate * t) * cdf(-d2))
+    return {"delta_est": round(delta, 4), "gamma_est": round(pdf(d1) / (spot * iv * math.sqrt(t)), 6),
+            "theta_daily_est": round(theta_year / 365, 4),
+            "vega_1pct_est": round(spot * pdf(d1) * math.sqrt(t) / 100, 4),
+            "greeks_rate_assumption": rate}
+
+
 def fetch_position_option_quote(position):
     """Fetch the current mark for one exact option contract from yfinance."""
     try:
@@ -348,7 +374,12 @@ def fetch_position_option_quote(position):
         mark = (bid + ask) / 2 if bid is not None and ask is not None and bid > 0 and ask > 0 else last
         if mark is None:
             return None
-        return {"mark": round(mark, 4), "bid": bid, "ask": ask, "source": "yfinance option chain"}
+        return {
+            "mark": round(mark, 4), "bid": bid, "ask": ask, "last": last,
+            "implied_volatility": iv,
+            "open_interest": _num(row.get("openInterest")), "volume": _num(row.get("volume")),
+            "last_trade": str(row.get("lastTradeDate", "")), "source": "yfinance option chain",
+        }
     except Exception as e:  # noqa: BLE001
         print(f"[portfolio option] {position.get('underlying', '?')} 失败: {e}")
         return None
@@ -390,14 +421,33 @@ def enrich_portfolio_snapshot(snapshot, quotes):
         quantity = _num(item.get("quantity")) or 0.0
         average_price = _num(item.get("average_price"))
         mark = quote.get("mark") if quote else None
+        underlying_price = _num((quotes.get(f"us{str(item.get('underlying', '')).upper()}") or {}).get("last"))
         market_value = mark * quantity * 100 if mark is not None else None
         cost_basis = average_price * quantity if average_price is not None else None
         pnl = market_value - cost_basis if market_value is not None and cost_basis is not None else None
         pnl_pct = pnl / cost_basis * 100 if pnl is not None and cost_basis else None
-        item.update({"current_price": mark, "market_value": market_value,
+        strike = _num(item.get("strike")) or 0
+        option_type = str(item.get("type", "call")).lower()
+        intrinsic = (max(underlying_price - strike, 0) if option_type == "call" else
+                     max(strike - underlying_price, 0)) if underlying_price is not None else None
+        expiration = datetime.date.fromisoformat(str(item["expiration_date"]))
+        dte = max((expiration - datetime.date.today()).days, 0)
+        spread = (quote["ask"] - quote["bid"]) if quote and quote.get("ask") is not None and quote.get("bid") is not None else None
+        spread_pct = spread / mark * 100 if spread is not None and mark else None
+        greeks = option_greeks(underlying_price, strike, dte,
+                               quote.get("implied_volatility") if quote else None, option_type)
+        item.update({"current_price": mark, "underlying_price": underlying_price,
+                     "market_value": market_value, "dte": dte,
+                     "intrinsic_value": intrinsic,
+                     "extrinsic_value": max(mark - intrinsic, 0) if mark is not None and intrinsic is not None else None,
+                     "bid": quote.get("bid") if quote else None, "ask": quote.get("ask") if quote else None,
+                     "spread_pct": spread_pct, "implied_volatility": quote.get("implied_volatility") if quote else None,
+                     "open_interest": quote.get("open_interest") if quote else None,
+                     "volume": quote.get("volume") if quote else None, "last_trade": quote.get("last_trade") if quote else None,
                      "cost_basis": cost_basis, "unrealized_pnl": pnl,
                      "unrealized_pnl_pct": pnl_pct,
                      "price_source": quote.get("source") if quote else None})
+        item.update(greeks)
         options.append(item)
         if market_value is None:
             options_complete = False
@@ -414,8 +464,24 @@ def enrich_portfolio_snapshot(snapshot, quotes):
         "options_value": round(options_value, 2),
         "total_value": round(cash + equity_value + options_value, 2) if complete else None,
         "complete": complete,
+        "equity_complete": equity_complete,
+        "options_complete": options_complete,
         "price_sources": ["westockdata daily close", "yfinance option chain"],
     }
+    total = result["valuation"]["total_value"]
+    if total:
+        for item in equities:
+            item["weight_pct"] = round((item.get("market_value") or 0) / total * 100, 2)
+        for item in options:
+            item["weight_pct"] = round((item.get("market_value") or 0) / total * 100, 2)
+        result["risk"] = {
+            "cash_pct": round(cash / total * 100, 2),
+            "equity_pct": round(equity_value / total * 100, 2),
+            "options_pct": round(options_value / total * 100, 2),
+            "largest_position_pct": round(max([x.get("weight_pct", 0) for x in equities + options] or [0]), 2),
+            "semiconductor_equity_pct": round(sum((x.get("market_value") or 0) for x in equities
+                if str(x.get("symbol", "")).upper() in {"INTC","WOLF","AEHR","MRVL","NVDA","AMD","AVGO","MU","TSM","ASML","AMAT","ARM"}) / total * 100, 2),
+        }
     return result
 
 
@@ -425,8 +491,7 @@ def fetch_adv_dec():
     数据源说明：
       - Yahoo Finance v7 / StockAnalysis API / FINRA JSON 已下线或限制，
       暂时用 30 + 30 = 60 只头部股 yfinance 自算，覆盖 90%+ 市值。
-      - 不是交易所全量（NYSE 2800+ / NASDAQ 3300+ 只），
-      但作为"市场宽度 proxy"够稳定。
+      - 不是交易所全量，仅作为方向性代理，不宣称市值覆盖比例。
     """
     print("拉取 NYSE/NASDAQ 涨跌家数（60 只代表性大票，yfinance + 并行）...")
 
@@ -528,78 +593,48 @@ def _parse_westock_calendar(stdout):
     return rows
 
 
-def fetch_fedwatch(yf_data, econ_calendar):
-    """构造利率预期面板（定性 + 数据驱动，非 CME FedWatch 精确概率）。
-
-    数据来源：
-      - yfinance 已拉取的 ^TNX（10Y）、^TYX（30Y）、^FVX（5Y）→ 收益率曲线
-      - 已发布的 CPI/非农/PPI/PMI（从 econ_calendar 取最新有 actual 的事件）
-      - 下次 FOMC 日期（从 econ_calendar 找 "联邦基金" / "美联储利率决议" 或 hard-coded）
-
-    返回：
-      {
-        "current_range": "3.50%-3.75%",
-        "next_meeting": "2026-09-17",
-        "next_meeting_time": "02:00",
-        "curve_2s10s":  +35bp / -15bp / ...,
-        "dxy_chg_pct": -0.5,
-        "tnx_chg_pct": -1.2,
-        "latest_cpi": {"yoy": "2.9%", "date": "2026-08-12"},
-        "latest_nfp": {"value": "-23k", "date": "2026-09-04"},
-        "stance_hint": "数据驱动定性（鸽/中/鹰）由 ai_analysis.py 给出"
-      }
-    """
+def fetch_rate_context(yf_data, econ_calendar):
+    """构造利率环境摘要；不是 CME FedWatch，也不提供政策概率。"""
     out = {
-        "current_range": "3.50%-3.75%",
+        "current_range": "—（未接入官方目标区间源）",
         "next_meeting": "—",
         "next_meeting_time": "—",
-        "curve_2s10s": None,
+        "curve_5s10s_bp": None,
         "dxy_chg_pct": None,
         "tnx_chg_pct": None,
         "latest_cpi": None,
         "latest_nfp": None,
         "stance_hint": "由 ai_analysis.py 综合判断",
     }
-    # 1) 收益率曲线（5Y vs 10Y，简化版 2s10s）
+    # 1) 收益率曲线：Yahoo 的 ^FVX=5Y、^TNX=10Y，差值转换为基点。
     tnx = yf_data.get("tnx", {}).get("last")
     fvx = yf_data.get("fvx", {}).get("last")
     if tnx is not None and fvx is not None:
-        # FVX 是 5Y，TNX 是 10Y；2s10s ≈ 10Y - 5Y（简化）
-        out["curve_2s10s"] = round(tnx - fvx, 2)
+        out["curve_5s10s_bp"] = round((tnx - fvx) * 100, 1)
     # 2) DXY 当日涨跌
     out["dxy_chg_pct"] = yf_data.get("dxy", {}).get("chg_pct")
     out["tnx_chg_pct"] = yf_data.get("tnx", {}).get("chg_pct")
     # 3) 最近已发布的 CPI / 非农（从 econ_calendar 找 actual）
-    today = datetime.date.today().isoformat()
     for d_str in sorted(econ_calendar.keys(), reverse=True):
         for e in econ_calendar[d_str]:
             ev = e.get("event", "")
             actual = e.get("actual", "")
             if not actual:
                 continue
-            if out["latest_cpi"] is None and "CPI" in ev.upper() or "消费者物价" in ev:
+            if out["latest_cpi"] is None and ("CPI" in ev.upper() or "消费者物价" in ev):
                 out["latest_cpi"] = {"value": actual, "date": d_str, "event": ev,
                                      "previous": e.get("previous"), "forecast": e.get("forecast")}
             if out["latest_nfp"] is None and ("非农" in ev or "Non-Farm" in ev or "NFP" in ev.upper()):
                 out["latest_nfp"] = {"value": actual, "date": d_str, "event": ev,
                                      "previous": e.get("previous"), "forecast": e.get("forecast")}
-    # 已知 2026-2027 FOMC 利率决议日期（hard-coded 兜底，westock 没显示时用）
-    # 决议通常在北京时间次日凌晨 02:00 发布
-    FOMC_DATES = [
-        "2026-01-29", "2026-03-18", "2026-04-29", "2026-06-17", "2026-07-29",
-        "2026-09-17", "2026-10-28", "2026-12-16",
-        "2027-01-27", "2027-03-17", "2027-04-28",
-    ]
-    today_date = datetime.datetime.now().date()
-    for d_iso in FOMC_DATES:
-        try:
-            d = datetime.date.fromisoformat(d_iso)
-        except ValueError:
-            continue
-        if d >= today_date:
-            out["next_meeting"] = d_iso
-            out["next_meeting_time"] = "02:00 CST"
-            break
+    # 4) 会议日期只采用日历源，不维护会过期的硬编码日期。
+    for d_iso in sorted(econ_calendar):
+        for event in econ_calendar[d_iso]:
+            name = str(event.get("event", ""))
+            if "利率决议" in name or "FOMC" in name.upper():
+                out["next_meeting"] = d_iso
+                out["next_meeting_time"] = event.get("time") or "—"
+                return out
     return out
 
 
@@ -628,8 +663,7 @@ def main():
     # 确定最新两个交易日
     all_dates = completed_trading_dates(rows)
     if len(all_dates) < 2:
-        print("K 线数据不足，退出")
-        return
+        raise RuntimeError("K 线数据不足，拒绝生成可能误导的看板")
     d_latest = all_dates[-1]
     d_prev = all_dates[-2]
 
@@ -687,22 +721,11 @@ def main():
     print("拉取 NYSE/NASDAQ 涨跌家数...")
     adv_dec = fetch_adv_dec()
 
-    # 6) 多源 RSS 新闻（Yahoo/Bloomberg/WSJ/CNBC/MarketWatch/Seeking Alpha/Investing）
-    print("拉取多源 RSS 新闻...")
+    # 6) workflow 已抓取一次新闻；这里只读同一份输入，避免重复请求和输入漂移。
+    print("读取多源 RSS 新闻...")
     news_data = {}
     try:
-        import subprocess
         here = os.path.dirname(os.path.abspath(__file__))
-        r = subprocess.run(
-            [sys.executable, os.path.join(here, "fetch_news.py")],
-            capture_output=True, text=True, timeout=120)
-        # 解析 stdout 提取条数
-        for line in r.stdout.splitlines():
-            if line.startswith("  主题分布:"):
-                print(f"  [news] {line.strip()}")
-            elif "已写入" in line:
-                print(f"  [news] {line.strip()}")
-        # 读 news.json
         news_path = os.path.join(here, "news.json")
         if os.path.exists(news_path):
             with open(news_path, encoding="utf-8") as f:
@@ -714,9 +737,36 @@ def main():
     econ_calendar = fetch_econ_calendar(days=7)
 
     # 8) 利率预期面板（收益率曲线 + 最近 CPI/非农 + 下次 FOMC）
-    fedwatch = fetch_fedwatch(yf_data, econ_calendar)
-    print(f"  FedWatch 面板: curve_2s10s={fedwatch.get('curve_2s10s')}bp "
-          f"next_FOMC={fedwatch.get('next_meeting')} {fedwatch.get('next_meeting_time')}")
+    rate_context = fetch_rate_context(yf_data, econ_calendar)
+    print(f"  利率环境: curve_5s10s={rate_context.get('curve_5s10s_bp')}bp "
+          f"next_FOMC={rate_context.get('next_meeting')} {rate_context.get('next_meeting_time')}")
+
+    required = list(dict.fromkeys(HOLDINGS + ["usSPY", "usQQQ", "usIWM", "usDIA", "usSMH",
+                                                   "usXLK", "usIGV", "usXLF", "usXLE", "usGLD"]))
+    missing_change = [s.removeprefix("us") for s in required
+                      if (quotes.get(s) or {}).get("chg_pct") is None]
+    news_age = news_data.get("generated_at")
+    snapshot_as_of = private_snapshot.get("as_of") if private_snapshot.get("available") else None
+    snapshot_age_hours = None
+    if snapshot_as_of:
+        try:
+            stamp = datetime.datetime.fromisoformat(str(snapshot_as_of).replace("Z", "+00:00"))
+            snapshot_age_hours = round((datetime.datetime.now(datetime.timezone.utc) - stamp).total_seconds() / 3600, 1)
+        except ValueError:
+            pass
+    stale_snapshot = snapshot_age_hours is not None and snapshot_age_hours > 18
+    health = {
+        "status": "ok" if not missing_change and not stale_snapshot else "degraded",
+        "quote_count": len(quotes),
+        "required_quote_count": len(required),
+        "missing_change": missing_change,
+        "market_as_of": d_latest,
+        "news_as_of": news_age,
+        "portfolio_as_of": snapshot_as_of,
+        "portfolio_age_hours": snapshot_age_hours,
+        "portfolio_stale": stale_snapshot,
+        "portfolio_available": bool(private_snapshot.get("available")),
+    }
 
     result = {
         "generated_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -738,7 +788,9 @@ def main():
         "adv_dec": adv_dec,
         "news": news_data,
         "econ_calendar": econ_calendar,
-        "fedwatch": fedwatch,
+        "rate_context": rate_context,
+        "fedwatch": rate_context,
+        "data_health": health,
     }
 
     out_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "market_data.json")

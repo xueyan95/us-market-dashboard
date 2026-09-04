@@ -11,9 +11,9 @@ import json
 import os
 import urllib.parse
 import urllib.request
-from portfolio import holding_symbols, load_portfolio_config
+from portfolio import holding_symbols, load_effective_portfolio
 
-PORTFOLIO_CONFIG = load_portfolio_config()
+PORTFOLIO_CONFIG = load_effective_portfolio()
 HOLDINGS = holding_symbols(PORTFOLIO_CONFIG)
 
 
