@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 gen_dashboard.py — 数据驱动生成每日美股行情看板 index.html。
-读取 market_data.json（行情/财报/宏观）+ analysis.json（Gemini 研判），
+读取 market_data.json（行情/财报/宏观）+ analysis.json（SiliconFlow 研判），
 生成单文件、零外链、涨红跌绿、三态主题的 HTML。
 完全脱离 WorkBuddy。
 """
@@ -82,7 +82,10 @@ SENT = M.get("sentiment", {})
 YF = M.get("yf", {})
 D_LATEST = M.get("d_latest", "—")
 D_PREV = M.get("d_prev", "—")
-GEN_TIME = datetime.datetime.now().strftime("%Y-%m-%d %H:%M") + "（北京时间）"
+# 显式指定 UTC+8（北京时间 CST）—— GitHub Actions ubuntu 默认时区是 UTC，
+# 用 naive datetime.now() 会把 UTC 时间错标为"北京时间"，提前 8 小时
+CST = datetime.timezone(datetime.timedelta(hours=8))
+GEN_TIME = datetime.datetime.now(CST).strftime("%Y-%m-%d %H:%M") + "（北京时间）"
 
 
 def get(sym):
@@ -666,11 +669,11 @@ body = f"""
       <button class="tt-btn" data-theme="dark">夜间</button>
     </div>
   </div>
-  <div class="meta">生成：{GEN_TIME} · 数据截至 {D_LATEST} 美东收盘（vs {D_PREV}） · 涨红跌绿（中国习惯）· 数据源：westockdata / Nasdaq / yfinance / Gemini 联网</div>
+  <div class="meta">生成：{GEN_TIME} · 数据截至 {D_LATEST} 美东收盘（vs {D_PREV}） · 涨红跌绿（中国习惯）· 数据源：westockdata / Nasdaq / yfinance / SiliconFlow（Qwen2.5-72B）</div>
 </header>
 
 <div class="card">
-  <h2>① AI 研判 <span class="tag">Gemini · 联网</span></h2>
+  <h2>① AI 研判 <span class="tag">SiliconFlow · Qwen2.5-72B</span></h2>
   <div class="concl">{concl}</div>
   <div class="q4">
     <div><b>① 为什么买？</b> {q4[0]}</div>

@@ -221,7 +221,7 @@ def main():
     out_path = os.path.join(here, "news.json")
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump({
-            "generated_at": datetime.datetime.now().isoformat(),
+            "generated_at": datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8))).isoformat(),
             "count": len(items),
             "sources": source_dist,
             "items": items,
