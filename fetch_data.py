@@ -294,9 +294,6 @@ def fetch_options_one(sym):
         put_oi = int(puts["openInterest"].fillna(0).sum()) if "openInterest" in puts.columns else 0
         pc_vol = round(put_vol / call_vol, 2) if call_vol > 0 else None
         pc_oi = round(put_oi / call_oi, 2) if call_oi > 0 else None
-        iv = _num(row.get("impliedVolatility"))
-        if iv is not None and not 0.05 <= iv <= 5:
-            iv = None
         return {
             "expiry": target,
             "last": round(last, 2) if last is not None else None,
@@ -374,6 +371,9 @@ def fetch_position_option_quote(position):
         mark = (bid + ask) / 2 if bid is not None and ask is not None and bid > 0 and ask > 0 else last
         if mark is None:
             return None
+        iv = _num(row.get("impliedVolatility"))
+        if iv is not None and not 0.05 <= iv <= 5:
+            iv = None
         return {
             "mark": round(mark, 4), "bid": bid, "ask": ask, "last": last,
             "implied_volatility": iv,
