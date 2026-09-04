@@ -14,6 +14,7 @@ ai_analysis.py — 调用 SiliconFlow（硅基流动，OpenAI 兼容 API）做 A
 环境变量：
   SILICONFLOW_API_KEY  — 必填
   SF_MODEL             — 可选，默认 deepseek-ai/DeepSeek-V4-Pro
+  SF_THINKING_BUDGET   — 可选，默认 2048；限制推理模型思维链长度
 """
 import datetime
 import json
@@ -28,6 +29,10 @@ from portfolio import holding_symbols, load_effective_portfolio
 
 API_KEY = os.environ.get("SILICONFLOW_API_KEY", "")
 MODEL = os.environ.get("SF_MODEL", "deepseek-ai/DeepSeek-V4-Pro")
+try:
+    THINKING_BUDGET = min(32768, max(128, int(os.environ.get("SF_THINKING_BUDGET", "2048"))))
+except ValueError:
+    THINKING_BUDGET = 2048
 BASE = "https://api.siliconflow.cn/v1"
 
 PORTFOLIO_CONFIG = load_effective_portfolio()
@@ -253,6 +258,8 @@ def _call(model, prompt):
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
         "response_format": {"type": "json_object"},
+        "enable_thinking": True,
+        "thinking_budget": THINKING_BUDGET,
         "temperature": 0.4,
         "max_tokens": 4096,
     }
@@ -278,7 +285,7 @@ def call_siliconflow(prompt):
     ]))
     last_err = None
     for m in models:
-        for attempt in range(3):
+        for attempt in range(2):
             try:
                 text = _call(m, prompt)
                 return json.loads(text), m

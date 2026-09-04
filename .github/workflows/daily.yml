@@ -109,6 +109,8 @@ jobs:
           SILICONFLOW_API_KEY: ${{ secrets.SILICONFLOW_API_KEY }}
           # Repository Variable 可随时换模型；未配置时使用当前旗舰模型。
           SF_MODEL: ${{ vars.SF_MODEL || 'deepseek-ai/DeepSeek-V4-Pro' }}
+          # 控制推理深度和运行时间；可在 Repository Variables 中调整。
+          SF_THINKING_BUDGET: ${{ vars.SF_THINKING_BUDGET || '2048' }}
           REPORT_SLOT: ${{ env.REPORT_SLOT }}
         run: python ai_analysis.py
 
