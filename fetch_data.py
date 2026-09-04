@@ -111,6 +111,29 @@ def parse_kline(out):
     return rows
 
 
+def completed_trading_dates(rows):
+    """Return dates after removing a provider-generated duplicate placeholder day.
+
+    Before the US regular session, westockdata may publish today's date with
+    yesterday's OHLC values. If most symbols are byte-for-byte unchanged, that
+    row is not a completed session and must not be used as the comparison base.
+    """
+    dates = sorted({d for by_date in rows.values() for d in by_date})
+    while len(dates) >= 3:
+        latest, previous = dates[-1], dates[-2]
+        pairs = [(by_date[latest], by_date[previous]) for by_date in rows.values()
+                 if latest in by_date and previous in by_date]
+        if len(pairs) < 10:
+            break
+        unchanged = sum(abs(a - b) < 1e-9 for a, b in pairs)
+        duplicate_ratio = unchanged / len(pairs)
+        if duplicate_ratio < 0.80:
+            break
+        print(f"检测到行情源占位日 {latest}：{unchanged}/{len(pairs)} 只与 {previous} 收盘完全相同，已忽略")
+        dates.pop()
+    return dates
+
+
 def rsi(closes, period=14):
     if len(closes) <= period:
         return None
@@ -603,7 +626,7 @@ def main():
         rows = parse_kline(kline_out)
 
     # 确定最新两个交易日
-    all_dates = sorted({d for by in rows.values() for d in by})
+    all_dates = completed_trading_dates(rows)
     if len(all_dates) < 2:
         print("K 线数据不足，退出")
         return
@@ -613,7 +636,7 @@ def main():
     # 每只股票：最新价、当日涨跌、1周/1月/3月涨跌
     quotes = {}
     for sym, by in rows.items():
-        arr = sorted(by.items(), reverse=True)  # 最新在前
+        arr = sorted(((d, v) for d, v in by.items() if d <= d_latest), reverse=True)  # 已完成交易日，最新在前
         closes = [v for _, v in arr]
         dates = [d for d, _ in arr]
         if not closes:
