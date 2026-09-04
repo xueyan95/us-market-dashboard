@@ -8,12 +8,12 @@ ai_analysis.py — 调用 SiliconFlow（硅基流动，OpenAI 兼容 API）做 A
   - response_format: json_object 强制 JSON 输出，无需手动 parse
   - 不支持原生联网（无 googleSearch 等价物）→ 改用 fetch_news.py 抓的 RSS 多源新闻做上下文
   - 主题聚类：让模型把 20-30 条原始新闻聚成 4-6 大主题 + AI 摘要
-  - 多模型降级链：72B → 32B → 14B，每档重试 3 次
+  - 多模型降级链：DeepSeek V4 Pro → DeepSeek V3.2 → Qwen3.5，每档重试 3 次
   - API Key 从环境变量 SILICONFLOW_API_KEY 读取
 
 环境变量：
   SILICONFLOW_API_KEY  — 必填
-  SF_MODEL             — 可选，默认 Qwen/Qwen2.5-72B-Instruct
+  SF_MODEL             — 可选，默认 deepseek-ai/DeepSeek-V4-Pro
 """
 import datetime
 import json
@@ -27,7 +27,7 @@ import yfinance as yf
 from portfolio import holding_symbols, load_effective_portfolio
 
 API_KEY = os.environ.get("SILICONFLOW_API_KEY", "")
-MODEL = os.environ.get("SF_MODEL", "Qwen/Qwen2.5-72B-Instruct")
+MODEL = os.environ.get("SF_MODEL", "deepseek-ai/DeepSeek-V4-Pro")
 BASE = "https://api.siliconflow.cn/v1"
 
 PORTFOLIO_CONFIG = load_effective_portfolio()
@@ -270,11 +270,12 @@ def _call(model, prompt):
 
 def call_siliconflow(prompt):
     """多模型降级链 + 重试。"""
-    models = [
+    # dict.fromkeys 保序去重：当 SF_MODEL 已是降级链中的模型时不重复调用。
+    models = list(dict.fromkeys([
         MODEL,
-        "Qwen/Qwen2.5-32B-Instruct",
-        "Qwen/Qwen2.5-14B-Instruct",
-    ]
+        "deepseek-ai/DeepSeek-V3.2",
+        "Qwen/Qwen3.5-397B-A17B",
+    ]))
     last_err = None
     for m in models:
         for attempt in range(3):

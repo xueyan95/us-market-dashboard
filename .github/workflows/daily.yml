@@ -107,6 +107,8 @@ jobs:
         if: ${{ fromJSON(steps.slot.outputs.slot_json).slot != 'skip' }}
         env:
           SILICONFLOW_API_KEY: ${{ secrets.SILICONFLOW_API_KEY }}
+          # Repository Variable 可随时换模型；未配置时使用当前旗舰模型。
+          SF_MODEL: ${{ vars.SF_MODEL || 'deepseek-ai/DeepSeek-V4-Pro' }}
           REPORT_SLOT: ${{ env.REPORT_SLOT }}
         run: python ai_analysis.py
 
