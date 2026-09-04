@@ -1,0 +1,11 @@
+# 运行产物（本地调试生成，不入库）
+market_data.json
+analysis.json
+index.html
+
+# Python
+__pycache__/
+*.pyc
+
+# 本地敏感信息
+.env

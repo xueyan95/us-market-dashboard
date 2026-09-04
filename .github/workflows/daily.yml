@@ -1,0 +1,56 @@
+name: Daily US Market Dashboard
+
+on:
+  schedule:
+    # UTC 时间（北京时间 = UTC + 8）
+    # 每天 00:00 UTC = 北京时间 08:00 —— 美股收盘复盘（主）
+    - cron: '0 0 * * *'
+    # 每天 13:30 UTC = 北京时间 21:30 —— 美股盘前速览
+    - cron: '30 13 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Python deps
+        run: pip install yfinance
+
+      - name: Fetch market data
+        run: python fetch_data.py
+
+      - name: AI analysis (Gemini + search)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python ai_analysis.py
+
+      - name: Generate dashboard
+        run: python gen_dashboard.py
+
+      - name: Notify Feishu
+        env:
+          FEISHU_WEBHOOK: ${{ secrets.FEISHU_WEBHOOK }}
+        run: python notify_feishu.py
+
+      - name: Upload dashboard artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: us-market-dashboard
+          path: index.html
+          if-no-files-found: error
