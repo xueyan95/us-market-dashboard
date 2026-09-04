@@ -124,7 +124,12 @@ def fetch_earnings(datestr):
 
 
 def fetch_yf():
-    """用 yfinance 拉指数/VIX/美债/黄金/BTC。失败不中断。"""
+    """用 yfinance 拉指数/VIX/美债/黄金/BTC。失败不中断，但每条 ticker 失败都会 print。
+
+    关键防御：Yahoo API 偶发返回 NaN / 空 / <2 行，必须先校验，否则写出去的 nan
+    会把 notify_telegram 里的 f-string 渲染成 "nan" 字符串污染推送。
+    """
+    import math
     out = {}
     try:
         import yfinance as yf
@@ -134,20 +139,31 @@ def fetch_yf():
             "gold": "GC=F", "wti": "CL=F", "btc": "BTC-USD",
         }
         for k, t in tickers.items():
-            try:
-                tk = yf.Ticker(t)
-                h = tk.history(period="5d", interval="1d")
-                if h.empty or "Close" not in h:
-                    continue
-                closes = [float(x) for x in h["Close"].tolist()]
-                last = closes[-1]
-                prev = closes[-2] if len(closes) > 1 else last
-                out[k] = {
-                    "last": round(last, 4),
-                    "chg_pct": round((last / prev - 1) * 100, 3) if prev else None,
-                }
-            except Exception as e:  # noqa: BLE001
-                print(f"[yf] {t} 失败: {e}")
+            for attempt in range(2):
+                try:
+                    tk = yf.Ticker(t)
+                    h = tk.history(period="5d", interval="1d")
+                    if h is None or h.empty or "Close" not in h or len(h["Close"]) < 2:
+                        print(f"[yf] {t} 数据不足（attempt {attempt+1}）")
+                        time.sleep(1)
+                        continue
+                    closes = [float(x) for x in h["Close"].tolist()]
+                    last, prev = closes[-1], closes[-2]
+                    # NaN / 零价格防御（Yahoo 限流时偶尔返回 NaN）
+                    if (math.isnan(last) or math.isnan(prev) or prev == 0
+                            or not math.isfinite(last) or not math.isfinite(prev)):
+                        print(f"[yf] {t} 含 NaN/Inf（attempt {attempt+1}）")
+                        time.sleep(1)
+                        continue
+                    chg = (last / prev - 1) * 100
+                    out[k] = {
+                        "last": round(last, 4),
+                        "chg_pct": round(chg, 3),
+                    }
+                    break  # 成功，退出重试
+                except Exception as e:  # noqa: BLE001
+                    print(f"[yf] {t} 抛异常（attempt {attempt+1}）: {e}")
+                    time.sleep(1)
     except Exception as e:  # noqa: BLE001
         print(f"[yf] 整体失败（可能未装 yfinance）: {e}")
     return out

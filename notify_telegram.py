@@ -36,16 +36,28 @@ def esc(s):
     )
 
 
-def idx_html(yf, q, key, etf):
+def idx_html(yf, q, key, etf, etf_name):
+    """渲染「三大指数」单格文字。三层防御，确保永不输出 nan：
+        1. yfinance 数据有效 → 用真实指数点位 + 涨跌%
+        2. yfinance 无效 → fallback 到 westockdata ETF（涨跌幅一致，点位用 ETF 名）
+        3. ETF 也无 → 显示 "—"
+    """
+    import math
+
+    def _is_finite(x):
+        return x is not None and isinstance(x, (int, float)) and math.isfinite(x)
+
     v = yf.get(key, {})
-    if v.get("last") is not None:
-        c = v.get("chg_pct") or 0
-        sign = "+" if c > 0 else ""
-        return f"{v['last']:,.0f} ({sign}{c}%)"
+    last, chg = v.get("last"), v.get("chg_pct")
+    if _is_finite(last) and _is_finite(chg):
+        sign = "+" if chg > 0 else ""
+        return f"{last:,.0f} ({sign}{chg}%)"
     x = q.get(etf, {})
-    c = x.get("chg_pct") or 0
-    sign = "+" if c > 0 else ""
-    return f"{x.get('last', '—')} ({sign}{c}%)"
+    etf_chg = x.get("chg_pct")
+    if _is_finite(etf_chg):
+        sign = "+" if etf_chg > 0 else ""
+        return f"{etf_name} {sign}{etf_chg}%"
+    return f"{etf_name} —"
 
 
 def build_message():
@@ -62,9 +74,9 @@ def build_message():
         esc(a.get("conclusion", "（暂无）")),
         "",
         "【三大指数】",
-        f"标普 {esc(idx_html(yf, q, 'spx', 'usSPY'))} · "
-        f"纳指 {esc(idx_html(yf, q, 'ndx', 'usQQQ'))} · "
-        f"道指 {esc(idx_html(yf, q, 'dji', 'usDIA'))}",
+        f"{esc(idx_html(yf, q, 'spx', 'usSPY', '标普 ETF'))} · "
+        f"{esc(idx_html(yf, q, 'ndx', 'usQQQ', '纳指 ETF'))} · "
+        f"{esc(idx_html(yf, q, 'dji', 'usDIA', '道指 ETF'))}",
         "",
     ]
 
