@@ -98,31 +98,37 @@ def build_message():
     parts.append(" · ".join(hold_lines))
     parts.append("")
 
-    # FedWatch
+    # FedWatch / 利率预期
     fw = a.get("fedwatch", {})
     parts.append(
-        f"【FedWatch】加息 {esc(fw.get('hike', '—'))} / "
-        f"维持 {esc(fw.get('hold', '—'))} / "
-        f"降息 {esc(fw.get('cut', '—'))}"
+        f"【利率预期】{esc(fw.get('stance', '—'))} "
+        f"· 区间 {esc(fw.get('current_range', '—'))} "
+        f"· 下次 FOMC {esc(fw.get('next_meeting', '—'))}"
     )
+
+    # === 今日信息卡（AI 提炼的结构化信息，前 5 条）===
+    news_cards = a.get("news_cards", []) or []
+    if news_cards:
+        parts.append("")
+        parts.append("【今日要闻】")
+        for c in news_cards[:6]:
+            cat = esc(str(c.get("category", "")).strip())
+            title = esc(str(c.get("title", "")).strip())
+            key_data = esc(str(c.get("key_data", "")).strip())
+            # Telegram 字符有限，title + key_data 拼一起
+            line = f"  · <b>{cat}</b> {title}"
+            if key_data:
+                line += f" <i>{key_data}</i>"
+            parts.append(line)
 
     if a.get("tomorrow_focus"):
         parts.append("")
         parts.append(f"【近期关注】{esc(a['tomorrow_focus'])}")
 
-    # === 今日焦点（多源主题聚类前 3）===
-    themes = a.get("news_themes", []) or []
-    if themes:
-        parts.append("")
-        parts.append("【今日焦点】")
-        for i, th in enumerate(themes[:3]):
-            headline = esc(str(th.get("headline", "")).strip() or th.get("theme", ""))
-            parts.append(f"  {i+1}. {headline}")
-
     parts.extend([
         "",
         "完整看板见 GitHub Actions 产物 <code>index.html</code>",
-        "<i>基于公开数据，仅供参考，不构成投资建议。</i>",
+        "<i>基于公开数据 + AI 提炼，仅供参考，不构成投资建议。</i>",
     ])
     # Telegram 单条 4096 字符上限，留余量
     msg = "\n".join(parts)

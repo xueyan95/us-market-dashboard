@@ -422,11 +422,69 @@ for it in raw_news[:12]:
         + '</div>'
     )
 
+# === AI 提炼的结构化信息卡（用户偏好的形式：【类别·子类别】+ 关键数字 + 因果 + 来源） ===
+news_cards = A.get("news_cards", []) or []
+news_cards_html = ""
+for i, c in enumerate(news_cards[:15]):
+    cat = esc(str(c.get("category", "")))
+    title = esc(str(c.get("title", "")))
+    key_data = esc(str(c.get("key_data", "")))
+    impact = esc(str(c.get("impact", "")))
+    src = esc(str(c.get("source", "")))
+    news_cards_html += (
+        f'<div class="info-card">'
+        f'<div class="info-hd"><span class="info-cat">{cat}</span>'
+        f'<span class="info-no">#{i+1}</span></div>'
+        f'<div class="info-title">{title}</div>'
+        + (f'<div class="info-data">📊 {key_data}</div>' if key_data else '')
+        + (f'<div class="info-imp">💡 {impact}</div>' if impact else '')
+        + (f'<div class="info-src">[{src}]</div>' if src else '')
+        + '</div>'
+    )
+
+# === 宏观经济日历（未来 7 天，高重要性） ===
+econ_calendar = M.get("econ_calendar", {})
+econ_rows = ""
+econ_count = 0
+today_iso = datetime.date.today().isoformat()
+for d_str in sorted(econ_calendar.keys()):
+    for e in econ_calendar[d_str]:
+        if e.get("weight", 0) < 3:  # 只列高重要性
+            continue
+        if e.get("is_speech"):  # 跳过讲话 / 休市
+            continue
+        econ_count += 1
+        time_str = e.get("time", "—")
+        ev = esc(str(e.get("event", "")))
+        prev = esc(str(e.get("previous", "") or "—"))
+        fcst = esc(str(e.get("forecast", "") or "—"))
+        actual = esc(str(e.get("actual", "") or "—"))
+        cd = countdown_label(d_str)
+        # 已发布的标"已发布"
+        if e.get("actual"):
+            actual_cell = f'<td class="cd-done">{actual}</td>'
+        else:
+            actual_cell = '<td class="muted">—</td>'
+        cd_class = "cd-done" if d_str < today_iso else (
+            "cd-today" if d_str == today_iso else "cd-future")
+        econ_rows += (
+            f'<tr>'
+            f'<td class="{cd_class}"><b>{cd}</b><br><span class="date-sm">{d_str[5:].replace("-","/")} {time_str}</span></td>'
+            f'<td>{ev}</td>'
+            f'<td class="muted">{prev}</td>'
+            f'<td>{fcst}</td>'
+            f'{actual_cell}'
+            f'</tr>'
+        )
+if not econ_rows:
+    econ_rows = '<tr><td colspan="5" style="text-align:center;color:var(--sub);padding:12px">近 7 日无高重要性宏观事件</td></tr>'
+
 news_html = "".join(
     f'<li><b>{esc(str(x.get("title","")))}</b>：{esc(str(x.get("detail","")))} <span class="src">[{esc(str(x.get("source","")))}]</span></li>'
     for x in news_items) if news_items else '<li>（暂无新闻）</li>'
 
 fw = A.get("fedwatch", {})
+fede_tnx_str = f"{fw.get('tnx_chg_pct', '—')}%" if fw.get('tnx_chg_pct') not in (None, "—") else "—"
 hold_alert = A.get("holdings_alert", "")
 tomorrow = A.get("tomorrow_focus", "")
 
@@ -521,6 +579,25 @@ td .rsi-lbl{color:inherit}
 .opt-row b{font-weight:700}
 .opt-row .iv{font-weight:700;font-variant-numeric:tabular-nums}
 .opt-row .pc{font-variant-numeric:tabular-nums;font-size:12px}
+
+/* 信息卡（AI 提炼的结构化卡片，【类别·子类别】+ 关键数字 + 因果） */
+.info-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:8px;margin:6px 0 14px}
+.info-card{background:var(--card2);border-radius:10px;padding:12px 14px;border-left:3px solid var(--accent);transition:border-color .15s}
+.info-card:hover{border-left-color:var(--red)}
+.info-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.info-cat{font-size:11px;font-weight:700;color:var(--accent);background:var(--card);padding:2px 8px;border-radius:4px;letter-spacing:.3px}
+.info-no{font-size:10px;color:var(--sub);font-weight:600}
+.info-title{font-size:13px;font-weight:700;color:var(--txt);line-height:1.45;margin-bottom:6px}
+.info-data{font-size:11.5px;color:var(--red);font-weight:600;margin:4px 0;padding:4px 8px;background:var(--card);border-radius:4px;font-variant-numeric:tabular-nums}
+.info-imp{font-size:11.5px;color:var(--txt);line-height:1.5;margin-top:4px;opacity:.9}
+.info-src{font-size:10.5px;color:var(--sub);margin-top:6px;font-style:italic}
+
+/* 事件日历的高重要性标记 + 距离标签 */
+.cd-done{color:var(--sub);text-decoration:line-through;opacity:.6}
+.cd-today{color:var(--red);font-weight:700}
+.cd-future{color:var(--txt);font-weight:600}
+.date-sm{font-size:10px;color:var(--sub);font-weight:400}
+.muted{color:var(--sub)}
 .opt-row .pc-bull{color:var(--green)}
 .opt-row .pc-bear{color:var(--red)}
 .opt-row .vol{color:var(--sub);font-size:11px;font-variant-numeric:tabular-nums}
@@ -644,11 +721,13 @@ body = f"""
 </div>
 
 <div class="card">
-  <h2>⑥ 重要信息 <span class="tag">多源聚合 · {raw_news_count} 条 / {len(themes)} 主题</span></h2>
+  <h2>⑥ 重要信息 <span class="tag">AI 提炼 · {len(news_cards)} 张信息卡</span></h2>
 
-  <div class="sec-desc">聚合自 <b>{len(sources_dist)}</b> 个源（{sources_label}），用 SiliconFlow 做主题聚类。共抓到 <b>{raw_news_count}</b> 条 RSS 新闻，聚成 <b>{len(themes)}</b> 个主题，{GEN_TIME}。</div>
+  <div class="sec-desc">基于 RSS 多源新闻（已分类主题），由 SiliconFlow 提炼 {len(news_cards)} 张结构化信息卡：每张含【类别·子类别】+ 关键数字 + 因果 + 来源。下方为全部 RSS 原文（{raw_news_count} 条 / {len(sources_dist)} 个源）。</div>
 
-  {news_by_theme_html}
+  <div class="info-grid">{news_cards_html}</div>
+
+  {('<details class="news-details"><summary>📰 主题聚类视图（' + str(len(themes)) + ' 个主题）</summary>' + news_by_theme_html + '</details>') if news_by_theme_html else ''}
 
   <details class="news-details">
     <summary>📜 查看全部 {raw_news_count} 条原始新闻（按时间倒序）</summary>
@@ -657,26 +736,52 @@ body = f"""
 </div>
 
 <div class="card">
-  <h2>⑦ 利率预期 <span class="tag">CME FedWatch</span></h2>
-  <div class="sec-desc">下次 FOMC：{fw.get("meeting","—")}。当前目标区间 3.50%–3.75%。</div>
-  <div class="kv">
-    <div class="it"><div class="k">加息概率</div><div class="v">{fw.get("hike","—")}</div></div>
-    <div class="it"><div class="k">维持不变</div><div class="v">{fw.get("hold","—")}</div></div>
-    <div class="it"><div class="k">降息概率</div><div class="v">{fw.get("cut","—")}</div></div>
-    <div class="it"><div class="k">下次决议</div><div class="v" style="font-size:15px">{fw.get("meeting","—")}</div></div>
+  <h2>⑦ 利率预期 <span class="tag">实时数据 + AI 定性</span></h2>
+  <div class="sec-desc">
+    当前联邦基金目标区间：<b>{fw.get("current_range","—")}</b>；
+    下次 FOMC：<b>{fw.get("next_meeting","—")} {fw.get("next_meeting_time","")}</b>；
+    收益率曲线 2s10s：<b>{fw.get("curve_2s10s_bp","—")} bp</b>
+    （正值=陡峭扩张 / 负值=倒挂）。
   </div>
+  <div class="kv kv-fedwatch">
+    <div class="it">
+      <div class="k">AI 综合定性</div>
+      <div class="v" style="font-size:16px">{fw.get("stance","—")}</div>
+    </div>
+    <div class="it">
+      <div class="k">最新 CPI</div>
+      <div class="v" style="font-size:14px">{fw.get("latest_cpi","—")}</div>
+    </div>
+    <div class="it">
+      <div class="k">最新 非农</div>
+      <div class="v" style="font-size:14px">{fw.get("latest_nfp","—")}</div>
+    </div>
+    <div class="it">
+      <div class="k">曲线 / 10Y</div>
+      <div class="v" style="font-size:14px">{fw.get("curve_2s10s_bp","—")}bp / {fede_tnx_str}</div>
+    </div>
+  </div>
+  <div class="note"><b>立场理由</b>：{fw.get("stance_reason","") or "—"}</div>
   <div class="note">{fw.get("note","")}</div>
 </div>
 
 <div class="card">
-  <h2>⑧ 事件日历 <span class="tag">财报 + 前瞻</span></h2>
-  <div class="sec-desc">近 6 日持仓/关注池财报（Nasdaq keyless 接口）。</div>
+  <h2>⑧ 事件日历 <span class="tag">宏观 + 财报</span></h2>
+  <div class="sec-desc">
+    未来 7 天高重要性宏观数据（来自 westock 经济日历，仅含权重=3 的事件，含前值/预期/实际）。
+    下方为持仓/关注池财报（Nasdaq keyless 接口）。
+  </div>
   <table>
-    <tr><th>代码</th><th>公司</th><th>日期/时间</th><th>距离</th><th>EPS预测</th><th>去年同期</th></tr>
-    {ear_fwd_rows}
+    <tr><th>距今</th><th>事件</th><th>前值</th><th>预期</th><th>实际</th></tr>
+    {econ_rows}
   </table>
-  <div class="note" style="margin-top:10px">近期宏观节点：{tomorrow or '（暂无）'}</div>
-  <div class="note">持仓预警：{hold_alert or '（暂无）'}</div>
+  <details class="news-details">
+    <summary>📊 近 6 日持仓/关注池财报（{len(ear_fwd_rows.split('<tr>'))-1 if ear_fwd_rows else 0} 条）</summary>
+    <table style="margin-top:8px">
+      <tr><th>代码</th><th>公司</th><th>日期/时间</th><th>距离</th><th>EPS预测</th><th>去年同期</th></tr>
+      {ear_fwd_rows}
+    </table>
+  </details>
 </div>
 
 <div class="card">

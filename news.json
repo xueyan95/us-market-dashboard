@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-09-04T15:12:35.817617",
-  "count": 42,
+  "generated_at": "2026-09-04T15:33:20.867766",
+  "count": 41,
   "sources": {
     "Yahoo Top": 8,
     "Yahoo Finance": 8,
@@ -14,11 +14,71 @@
   },
   "items": [
     {
-      "title": "Fiscal Dominance Will Break The Dollar's Long-Term Trend",
-      "link": "https://seekingalpha.com/article/4943013-fiscal-dominance-will-break-the-dollars-long-term-trend?source=feed_all_articles",
+      "title": "PDI: Too Cheap To Sell, Too Risky To Buy",
+      "link": "https://seekingalpha.com/article/4943017-pdi-too-cheap-to-sell-too-risky-to-buy?source=feed_all_articles",
       "summary": "",
-      "published": "2026-09-04T07:08:38",
-      "published_ts": 1788476918.0,
+      "published": "2026-09-04T07:29:05",
+      "published_ts": 1788478145.0,
+      "source": "Seeking Alpha",
+      "lang": "en",
+      "themes": [
+        "other"
+      ]
+    },
+    {
+      "title": "Oil prices set for weekly gain as US-Iran hostilities intensify",
+      "link": "https://www.investing.com/news/commodities-news/oil-prices-set-for-weekly-gain-as-usiran-hostilities-intensify-4888883",
+      "summary": "",
+      "published": "2026-09-04T07:25:26",
+      "published_ts": 1788477926.0,
+      "source": "Investing",
+      "lang": "en",
+      "themes": [
+        "geopolitics"
+      ]
+    },
+    {
+      "title": "China rare earth firms halt some US shipments over geopolitical worries, sources say",
+      "link": "https://www.investing.com/news/stock-market-news/china-rare-earth-firms-halt-some-us-shipments-over-geopolitical-worries-sources-say-4888882",
+      "summary": "",
+      "published": "2026-09-04T07:25:09",
+      "published_ts": 1788477909.0,
+      "source": "Investing",
+      "lang": "en",
+      "themes": [
+        "geopolitics"
+      ]
+    },
+    {
+      "title": "Hartford Global Impact Fund Q2 2026 Commentary",
+      "link": "https://seekingalpha.com/article/4943038-hartford-global-impact-fund-q2-2026-commentary?source=feed_all_articles",
+      "summary": "",
+      "published": "2026-09-04T07:25:00",
+      "published_ts": 1788477900.0,
+      "source": "Seeking Alpha",
+      "lang": "en",
+      "themes": [
+        "other"
+      ]
+    },
+    {
+      "title": "One year after its founder’s death, Armani faces challenge of ’inevitable evolution’",
+      "link": "https://www.investing.com/news/stock-market-news/one-year-after-its-founders-death-armani-faces-challenge-of-inevitable-evolution-4888840",
+      "summary": "",
+      "published": "2026-09-04T07:24:49",
+      "published_ts": 1788477889.0,
+      "source": "Investing",
+      "lang": "en",
+      "themes": [
+        "other"
+      ]
+    },
+    {
+      "title": "Tight Spreads And Low Yields: The Logic Behind The Short Position In Kimco Realty's Preferred Stocks",
+      "link": "https://seekingalpha.com/article/4943016-tight-spreads-and-low-yields-the-logic-behind-the-short-position-in-kimco-realtys-preferred-stocks?source=feed_all_articles",
+      "summary": "",
+      "published": "2026-09-04T07:21:20",
+      "published_ts": 1788477680.0,
       "source": "Seeking Alpha",
       "lang": "en",
       "themes": [
@@ -26,36 +86,72 @@
       ]
     },
     {
-      "title": "AbbVie: Shares Defy Sell-Side Downgrades, And That's Bullish (Technical Analysis)",
-      "link": "https://seekingalpha.com/article/4943011-abbvie-shares-defy-sellside-downgrades-and-thats-bullish-technical-analysis?source=feed_all_articles",
+      "title": "Trump says Britain ’on the edge of disaster,’ citing immigration and energy concerns",
+      "link": "https://www.investing.com/news/commodities-news/trump-says-britain-on-the-edge-of-disaster-citing-immigration-and-energy-concerns-4888507",
       "summary": "",
-      "published": "2026-09-04T07:07:53",
-      "published_ts": 1788476873.0,
+      "published": "2026-09-04T07:18:50",
+      "published_ts": 1788477530.0,
+      "source": "Investing",
+      "lang": "en",
+      "themes": [
+        "other"
+      ]
+    },
+    {
+      "title": "Volkswagen shares rally after board approves radical restructuring plan",
+      "link": "https://www.investing.com/news/stock-market-news/volkswagen-shares-rally-after-board-approves-radical-restructuring-plan-4888881",
+      "summary": "",
+      "published": "2026-09-04T07:18:34",
+      "published_ts": 1788477514.0,
+      "source": "Investing CN",
+      "lang": "en",
+      "themes": [
+        "other"
+      ]
+    },
+    {
+      "title": "My 21%+ Yielding Portfolio Update - Latest Changes And Performance",
+      "link": "https://seekingalpha.com/article/4943015-my-21-percent-plus-yielding-portfolio-update-latest-changes-and-performance?source=feed_all_articles",
+      "summary": "",
+      "published": "2026-09-04T07:15:22",
+      "published_ts": 1788477322.0,
       "source": "Seeking Alpha",
       "lang": "en",
       "themes": [
-        "other"
+        "macro"
       ]
     },
     {
-      "title": "Milton Capital agrees to acquire European tech firm Apostrophy",
-      "link": "https://www.investing.com/news/company-news/milton-capital-agrees-to-acquire-european-tech-firm-apostrophy-93CH-4888874",
+      "title": "FTSE 100 today: Stocks edge lower as traders eye U.S. jobs data",
+      "link": "https://www.investing.com/news/stock-market-news/ftse-100-today-stocks-edge-lower-as-traders-eye-us-jobs-data-4888877",
       "summary": "",
-      "published": "2026-09-04T07:07:02",
-      "published_ts": 1788476822.0,
-      "source": "Investing",
+      "published": "2026-09-04T07:15:22",
+      "published_ts": 1788477322.0,
+      "source": "Investing CN",
       "lang": "en",
       "themes": [
         "other"
       ]
     },
     {
-      "title": "Volkswagen shares jump in early trade on turnaround agreement",
-      "link": "https://www.investing.com/news/stock-market-news/volkswagen-shares-jump-in-early-trade-following-turnaround-agreement-4888864",
+      "title": "Global bond sell-off likely not over yet, Mohamed El-Erian tells CNBC",
+      "link": "https://www.cnbc.com/2026/09/04/el-erian-government-bond-selloff.html",
+      "summary": "In a wide-ranging interview, the renowned economist also said the U.S. Treasury had taken \"a step too far\" with its market intervention.",
+      "published": "2026-09-04T07:13:33",
+      "published_ts": 1788477213.0,
+      "source": "CNBC",
+      "lang": "en",
+      "themes": [
+        "other"
+      ]
+    },
+    {
+      "title": "Roblox: The Flywheel That Spun For Free Now Has A Bill",
+      "link": "https://seekingalpha.com/article/4943014-roblox-flywheel-that-spun-for-free-now-has-a-bill?source=feed_all_articles",
       "summary": "",
-      "published": "2026-09-04T07:07:01",
-      "published_ts": 1788476821.0,
-      "source": "Investing",
+      "published": "2026-09-04T07:10:33",
+      "published_ts": 1788477033.0,
+      "source": "Seeking Alpha",
       "lang": "en",
       "themes": [
         "other"
@@ -75,90 +171,6 @@
       ]
     },
     {
-      "title": "Who's The Spread Product Now?",
-      "link": "https://seekingalpha.com/article/4943026-who-is-spread-product-now?source=feed_all_articles",
-      "summary": "",
-      "published": "2026-09-04T07:05:00",
-      "published_ts": 1788476700.0,
-      "source": "Seeking Alpha",
-      "lang": "en",
-      "themes": [
-        "other"
-      ]
-    },
-    {
-      "title": "Municipality Finance issues NOK 2 billion seven-year notes",
-      "link": "https://www.investing.com/news/company-news/municipality-finance-issues-nok-2-billion-sevenyear-notes-93CH-4888871",
-      "summary": "",
-      "published": "2026-09-04T07:03:20",
-      "published_ts": 1788476600.0,
-      "source": "Investing",
-      "lang": "en",
-      "themes": [
-        "other"
-      ]
-    },
-    {
-      "title": "Global bond sell-off likely not over yet, Mohamed El-Erian tells CNBC",
-      "link": "https://www.cnbc.com/2026/09/04/el-erian-government-bond-selloff.html",
-      "summary": "In a wide-ranging interview, the renowned economist also said the U.S. Treasury had taken \"a step too far\" with its market intervention.",
-      "published": "2026-09-04T07:01:13",
-      "published_ts": 1788476473.0,
-      "source": "CNBC",
-      "lang": "en",
-      "themes": [
-        "other"
-      ]
-    },
-    {
-      "title": "PU Prime Launches Australian Operations under ASIC Licence",
-      "link": "https://www.investing.com/news/company-news/pu-prime-launches-australian-operations-under-asic-licence-4888869",
-      "summary": "",
-      "published": "2026-09-04T07:00:43",
-      "published_ts": 1788476443.0,
-      "source": "Investing",
-      "lang": "en",
-      "themes": [
-        "other"
-      ]
-    },
-    {
-      "title": "Japan stocks higher at close of trade; Nikkei 225 up 1.28%",
-      "link": "https://www.investing.com/news/stock-market-news/japan-stocks-higher-at-close-of-trade-nikkei-225-up-128-4888868",
-      "summary": "",
-      "published": "2026-09-04T07:00:04",
-      "published_ts": 1788476404.0,
-      "source": "Investing CN",
-      "lang": "en",
-      "themes": [
-        "other"
-      ]
-    },
-    {
-      "title": "BNY Mellon Opportunistic Municipal Securities Fund Q2 2026 Commentary",
-      "link": "https://seekingalpha.com/article/4943025-bny-mellon-opportunistic-municipal-securities-fund-q2-2026-commentary?source=feed_all_articles",
-      "summary": "",
-      "published": "2026-09-04T07:00:00",
-      "published_ts": 1788476400.0,
-      "source": "Seeking Alpha",
-      "lang": "en",
-      "themes": [
-        "other"
-      ]
-    },
-    {
-      "title": "Ultra Clean: AI Growth Is Surging And The Market Still Looks Too Cautious",
-      "link": "https://seekingalpha.com/article/4943024-ultra-clean-ai-growth-is-surging-and-the-market-still-looks-too-cautious?source=feed_all_articles",
-      "summary": "",
-      "published": "2026-09-04T06:55:59",
-      "published_ts": 1788476159.0,
-      "source": "Seeking Alpha",
-      "lang": "en",
-      "themes": [
-        "ai_tech"
-      ]
-    },
-    {
       "title": "Yen Holds Most of Its Gains After Thursday's 2% Rise",
       "link": "https://www.bloomberg.com/news/videos/2026-09-04/yen-holds-most-of-its-gains-after-thursday-s-2-rise-video",
       "summary": "The yen held most of its gains Friday after advancing more than 2% on Thursday. A rush to unwind yen-funded carry trades helped send the currency to a one-month high against the dollar as traders ramped up bets on further Bank of Japan rate hikes. Bloomberg's David Savage reports. (Source: Bloomberg)",
@@ -168,6 +180,18 @@
       "lang": "en",
       "themes": [
         "macro"
+      ]
+    },
+    {
+      "title": "Horizons Middle East & Africa 9/4/2026",
+      "link": "https://www.bloomberg.com/news/videos/2026-09-04/horizons-middle-east-africa-9-4-2026-video",
+      "summary": "Horizons Middle East & Africa is your daily spotlight on one of the world's fastest-growing regions. Live from Dubai, we bring you the latest global markets and analysis, plus news-making interviews, with a special focus on MEA. All that and more, as you head to the office in the Gulf, pause for lunch in Hong Kong, or start your day in London or Johannesburg. (Source: Bloomberg)",
+      "published": "2026-09-04T06:53:46",
+      "published_ts": 1788476026.0,
+      "source": "Bloomberg",
+      "lang": "en",
+      "themes": [
+        "other"
       ]
     },
     {
@@ -183,18 +207,6 @@
       ]
     },
     {
-      "title": "Oil investors need democratic Venezuela for stability, opposition leader says",
-      "link": "https://www.investing.com/news/stock-market-news/only-democratic-government-can-provide-stability-for-oil-investors-venezuelan-opposition-leader-says-4888305",
-      "summary": "",
-      "published": "2026-09-04T06:42:32",
-      "published_ts": 1788475352.0,
-      "source": "Investing CN",
-      "lang": "en",
-      "themes": [
-        "other"
-      ]
-    },
-    {
       "title": "Pimco Fund Beating 97% of Peers Cuts ‘Mag Seven’ to Bet on Asia",
       "link": "https://www.bloomberg.com/news/articles/2026-09-04/pimco-fund-beating-97-of-peers-cuts-mag-seven-to-bet-on-asia",
       "summary": "A top-performing fund manager at Pacific Investment Management Co. is betting the next winners of the AI boom will be found outside of crowded US Big Tech firms, turning instead to Asian equipment suppliers, Chinese financials and healthcare stocks.",
@@ -204,30 +216,6 @@
       "lang": "en",
       "themes": [
         "ai_tech"
-      ]
-    },
-    {
-      "title": "Sectra Q1 sales rise 25.8% as cloud revenue crosses SEK 1 bln",
-      "link": "https://www.investing.com/news/stock-market-news/sectra-q1-sales-rise-258-as-cloud-revenue-crosses-sek-1-bln-93CH-4888863",
-      "summary": "",
-      "published": "2026-09-04T06:40:57",
-      "published_ts": 1788475257.0,
-      "source": "Investing CN",
-      "lang": "en",
-      "themes": [
-        "other"
-      ]
-    },
-    {
-      "title": "Markets Weigh Energy Supply Strain: Market Snapshot",
-      "link": "https://www.bloomberg.com/news/videos/2026-09-04/markets-weigh-energy-supply-strain-market-snapshot-video",
-      "summary": "A fresh flare up in tit-for-tat attacks between the US and Iran put the Strait of Hormuz back in focus as gas, oil and other commodity prices rallied this week. With negotiations between the two sides grinding to a halt and Europe nearing the end of summer, dwindling gas storage levels are threatening to intensify a global fight for supply. The Opening Trade spoke with guests about the outlook as ",
-      "published": "2026-09-04T06:31:42",
-      "published_ts": 1788474702.0,
-      "source": "Bloomberg",
-      "lang": "en",
-      "themes": [
-        "geopolitics"
       ]
     },
     {
@@ -264,18 +252,6 @@
       "lang": "en",
       "themes": [
         "other"
-      ]
-    },
-    {
-      "title": "US pressure on Iran starting to tell, as sanctions and blockade bite",
-      "link": "https://www.yahoo.com/news/articles/us-pressure-iran-starting-tell-150155652.html",
-      "summary": "",
-      "published": "2026-09-04T03:59:54",
-      "published_ts": 1788465594.0,
-      "source": "Yahoo Top",
-      "lang": "en",
-      "themes": [
-        "geopolitics"
       ]
     },
     {
@@ -336,6 +312,18 @@
       "lang": "en",
       "themes": [
         "other"
+      ]
+    },
+    {
+      "title": "US probes Iran wedding strike that analysis shows was likely direct hit by US munition",
+      "link": "https://www.yahoo.com/news/articles/us-probes-iran-wedding-strike-235700084.html",
+      "summary": "",
+      "published": "2026-09-04T00:00:40",
+      "published_ts": 1788451240.0,
+      "source": "Yahoo Top",
+      "lang": "en",
+      "themes": [
+        "geopolitics"
       ]
     },
     {
@@ -411,11 +399,11 @@
       ]
     },
     {
-      "title": "The Feds took their best shot at Big Tech. They missed.",
-      "link": "https://finance.yahoo.com/technology/articles/feds-took-best-shot-big-145903676.html",
+      "title": "Labor Day Weekend 2026 Travel Gets Underway: What to Know",
+      "link": "https://www.yahoo.com/news/videos/labor-day-weekend-2026-travel-143458049.html",
       "summary": "",
-      "published": "2026-09-03T14:59:03",
-      "published_ts": 1788418743.0,
+      "published": "2026-09-03T14:34:58",
+      "published_ts": 1788417298.0,
       "source": "Yahoo Top",
       "lang": "en",
       "themes": [
@@ -459,6 +447,30 @@
       ]
     },
     {
+      "title": "Dollar Slips as T-note Yields Stabilize and Stocks Rally",
+      "link": "https://finance.yahoo.com/markets/currencies/articles/dollar-slips-t-note-yields-193909593.html",
+      "summary": "",
+      "published": "2026-09-02T19:39:09",
+      "published_ts": 1788349149.0,
+      "source": "Yahoo Finance",
+      "lang": "en",
+      "themes": [
+        "macro"
+      ]
+    },
+    {
+      "title": "Apple May Need a Foldable iPhone to Avoid a Revenue Slowdown Next Year",
+      "link": "https://finance.yahoo.com/markets/stocks/articles/apple-may-foldable-iphone-avoid-193326903.html",
+      "summary": "",
+      "published": "2026-09-02T19:33:26",
+      "published_ts": 1788348806.0,
+      "source": "Yahoo Finance",
+      "lang": "en",
+      "themes": [
+        "company"
+      ]
+    },
+    {
       "title": "Dear Zscaler Stock Fans, Mark Your Calendars for September 3",
       "link": "https://finance.yahoo.com/markets/stocks/articles/dear-zscaler-stock-fans-mark-192742718.html",
       "summary": "",
@@ -483,36 +495,11 @@
       ]
     },
     {
-      "title": "Crude Oil Prices Supported by Escalation of US-Iran Hostilities",
-      "link": "https://finance.yahoo.com/energy/articles/crude-oil-prices-supported-escalation-191450462.html",
+      "title": "Ondo makes its case to regulators across 3 separate filings",
+      "link": "https://finance.yahoo.com/markets/crypto/articles/ondo-makes-case-regulators-across-191737268.html",
       "summary": "",
-      "published": "2026-09-02T19:14:50",
-      "published_ts": 1788347690.0,
-      "source": "Yahoo Finance",
-      "lang": "en",
-      "themes": [
-        "geopolitics",
-        "energy_commodity"
-      ]
-    },
-    {
-      "title": "Nat-Gas Prices Rise on Hotter US Weather and Expectations of Smaller Storage",
-      "link": "https://finance.yahoo.com/energy/articles/nat-gas-prices-rise-hotter-191347980.html",
-      "summary": "",
-      "published": "2026-09-02T19:13:47",
-      "published_ts": 1788347627.0,
-      "source": "Yahoo Finance",
-      "lang": "en",
-      "themes": [
-        "other"
-      ]
-    },
-    {
-      "title": "Truist vs. U.S. Bancorp: Both Pay $0.52, but Only One Dividend Is Growing",
-      "link": "https://finance.yahoo.com/markets/stocks/articles/truist-vs-u-bancorp-both-191155267.html",
-      "summary": "",
-      "published": "2026-09-02T19:11:55",
-      "published_ts": 1788347515.0,
+      "published": "2026-09-02T19:17:37",
+      "published_ts": 1788347857.0,
       "source": "Yahoo Finance",
       "lang": "en",
       "themes": [

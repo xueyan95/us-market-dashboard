@@ -318,6 +318,161 @@ def fetch_adv_dec():
     return out
 
 
+def fetch_econ_calendar(days=7):
+    """用 westock-data-clawhub 拉未来 N 天美国经济数据日历。
+
+    返回结构：
+      {
+        "YYYY-MM-DD": [
+            {
+              "date": "2026-09-04", "time": "20:30",
+              "weight": 3,        # 重要性 1-3（3=高）
+              "event": "8月非农就业人口变动",
+              "country": "美国",
+              "previous": "+125k", "forecast": "+75k", "actual": ""
+            },
+            ...
+        ],
+        ...
+      }
+
+    只保留 Weightiness >= 2（中/高重要性），避免低权重噪音。
+    """
+    print(f"拉取未来 {days} 天美国经济日历（westock calendar）...")
+    out = {}
+    for offset in range(days):
+        d = (datetime.datetime.now() + datetime.timedelta(days=offset)).strftime("%Y-%m-%d")
+        try:
+            r = subprocess.run(
+                ["npx", "-y", "westock-data-clawhub@1.0.4", "calendar", d,
+                 "--country", "US", "--raw"],
+                capture_output=True, text=True, timeout=30)
+            events = _parse_westock_calendar(r.stdout)
+            # 只留美国 + 中高重要性
+            events = [e for e in events
+                      if e.get("country") == "美国" and e.get("weight", 0) >= 2]
+            if events:
+                out[d] = events
+                print(f"  {d}: {len(events)} 条美国重要事件")
+        except Exception as e:  # noqa: BLE001
+            print(f"  [econ_cal] {d} 失败: {e}")
+    return out
+
+
+def _parse_westock_calendar(stdout):
+    """解析 westock calendar --raw 的 markdown 表格 → list[dict]."""
+    rows = []
+    lines = stdout.splitlines()
+    # 找表头
+    header_idx = -1
+    for i, line in enumerate(lines):
+        if line.startswith("| date |"):
+            header_idx = i
+            break
+    if header_idx < 0 or header_idx + 2 >= len(lines):
+        return rows
+    # 跳过表头和分隔行
+    for line in lines[header_idx + 2:]:
+        line = line.strip()
+        if not line.startswith("|"):
+            break
+        parts = [p.strip() for p in line.split("|")]
+        # | date | oid | time | Weightiness | Content | CountryName | CountryCode | Previous | Predict | CurrentValue | ColumnCode | Area | FinancialEvent | Flag |
+        if len(parts) < 14:
+            continue
+        try:
+            rows.append({
+                "date": parts[1],
+                "time": parts[3],
+                "weight": int(parts[4]) if parts[4].isdigit() else 1,
+                "event": parts[5] or parts[13],  # 优先 Content，否则 FinancialEvent（讲话）
+                "country": parts[6],
+                "previous": parts[8],
+                "forecast": parts[9],
+                "actual": parts[10],
+                "area": parts[12],
+                "is_speech": not parts[13],  # FinancialEvent 非空 = 讲话/休市
+            })
+        except (ValueError, IndexError):
+            continue
+    return rows
+
+
+def fetch_fedwatch(yf_data, econ_calendar):
+    """构造利率预期面板（定性 + 数据驱动，非 CME FedWatch 精确概率）。
+
+    数据来源：
+      - yfinance 已拉取的 ^TNX（10Y）、^TYX（30Y）、^FVX（5Y）→ 收益率曲线
+      - 已发布的 CPI/非农/PPI/PMI（从 econ_calendar 取最新有 actual 的事件）
+      - 下次 FOMC 日期（从 econ_calendar 找 "联邦基金" / "美联储利率决议" 或 hard-coded）
+
+    返回：
+      {
+        "current_range": "3.50%-3.75%",
+        "next_meeting": "2026-09-17",
+        "next_meeting_time": "02:00",
+        "curve_2s10s":  +35bp / -15bp / ...,
+        "dxy_chg_pct": -0.5,
+        "tnx_chg_pct": -1.2,
+        "latest_cpi": {"yoy": "2.9%", "date": "2026-08-12"},
+        "latest_nfp": {"value": "-23k", "date": "2026-09-04"},
+        "stance_hint": "数据驱动定性（鸽/中/鹰）由 ai_analysis.py 给出"
+      }
+    """
+    out = {
+        "current_range": "3.50%-3.75%",
+        "next_meeting": "—",
+        "next_meeting_time": "—",
+        "curve_2s10s": None,
+        "dxy_chg_pct": None,
+        "tnx_chg_pct": None,
+        "latest_cpi": None,
+        "latest_nfp": None,
+        "stance_hint": "由 ai_analysis.py 综合判断",
+    }
+    # 1) 收益率曲线（5Y vs 10Y，简化版 2s10s）
+    tnx = yf_data.get("tnx", {}).get("last")
+    fvx = yf_data.get("fvx", {}).get("last")
+    if tnx is not None and fvx is not None:
+        # FVX 是 5Y，TNX 是 10Y；2s10s ≈ 10Y - 5Y（简化）
+        out["curve_2s10s"] = round(tnx - fvx, 2)
+    # 2) DXY 当日涨跌
+    out["dxy_chg_pct"] = yf_data.get("dxy", {}).get("chg_pct")
+    out["tnx_chg_pct"] = yf_data.get("tnx", {}).get("chg_pct")
+    # 3) 最近已发布的 CPI / 非农（从 econ_calendar 找 actual）
+    today = datetime.date.today().isoformat()
+    for d_str in sorted(econ_calendar.keys(), reverse=True):
+        for e in econ_calendar[d_str]:
+            ev = e.get("event", "")
+            actual = e.get("actual", "")
+            if not actual:
+                continue
+            if out["latest_cpi"] is None and "CPI" in ev.upper() or "消费者物价" in ev:
+                out["latest_cpi"] = {"value": actual, "date": d_str, "event": ev,
+                                     "previous": e.get("previous"), "forecast": e.get("forecast")}
+            if out["latest_nfp"] is None and ("非农" in ev or "Non-Farm" in ev or "NFP" in ev.upper()):
+                out["latest_nfp"] = {"value": actual, "date": d_str, "event": ev,
+                                     "previous": e.get("previous"), "forecast": e.get("forecast")}
+    # 已知 2026-2027 FOMC 利率决议日期（hard-coded 兜底，westock 没显示时用）
+    # 决议通常在北京时间次日凌晨 02:00 发布
+    FOMC_DATES = [
+        "2026-01-29", "2026-03-18", "2026-04-29", "2026-06-17", "2026-07-29",
+        "2026-09-17", "2026-10-28", "2026-12-16",
+        "2027-01-27", "2027-03-17", "2027-04-28",
+    ]
+    today_date = datetime.datetime.now().date()
+    for d_iso in FOMC_DATES:
+        try:
+            d = datetime.date.fromisoformat(d_iso)
+        except ValueError:
+            continue
+        if d >= today_date:
+            out["next_meeting"] = d_iso
+            out["next_meeting_time"] = "02:00 CST"
+            break
+    return out
+
+
 def main():
     today = datetime.datetime.now().strftime("%Y-%m-%d")
     print(f"=== fetch_data.py 运行于 {today} ===")
@@ -416,6 +571,14 @@ def main():
     except Exception as e:  # noqa: BLE001
         print(f"  [news] 拉取失败: {e}")
 
+    # 7) 宏观经济日历（未来 7 天 + 已发布数据）
+    econ_calendar = fetch_econ_calendar(days=7)
+
+    # 8) 利率预期面板（收益率曲线 + 最近 CPI/非农 + 下次 FOMC）
+    fedwatch = fetch_fedwatch(yf_data, econ_calendar)
+    print(f"  FedWatch 面板: curve_2s10s={fedwatch.get('curve_2s10s')}bp "
+          f"next_FOMC={fedwatch.get('next_meeting')} {fedwatch.get('next_meeting_time')}")
+
     result = {
         "generated_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "d_latest": d_latest,
@@ -428,6 +591,8 @@ def main():
         "options": options_data,
         "adv_dec": adv_dec,
         "news": news_data,
+        "econ_calendar": econ_calendar,
+        "fedwatch": fedwatch,
     }
 
     out_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "market_data.json")
