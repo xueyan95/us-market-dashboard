@@ -55,14 +55,23 @@ jobs:
           SLOT_UTC: ${{ github.event.schedule }}
         run: python should_notify.py
 
+      - name: Set report slot
+        if: ${{ fromJSON(steps.slot.outputs.slot_json).slot != 'skip' }}
+        env:
+          REPORT_SLOT: ${{ fromJSON(steps.slot.outputs.slot_json).slot }}
+        run: echo "REPORT_SLOT=$REPORT_SLOT" >> "$GITHUB_ENV"
+
       - name: AI analysis (SiliconFlow)
         if: ${{ fromJSON(steps.slot.outputs.slot_json).slot != 'skip' }}
         env:
           SILICONFLOW_API_KEY: ${{ secrets.SILICONFLOW_API_KEY }}
+          REPORT_SLOT: ${{ env.REPORT_SLOT }}
         run: python ai_analysis.py
 
       - name: Generate dashboard
         if: ${{ fromJSON(steps.slot.outputs.slot_json).slot != 'skip' }}
+        env:
+          REPORT_SLOT: ${{ env.REPORT_SLOT }}
         run: python gen_dashboard.py
 
       - name: Notify Telegram
@@ -70,6 +79,7 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          REPORT_SLOT: ${{ env.REPORT_SLOT }}
         run: python notify_telegram.py
 
       - name: Upload dashboard artifact

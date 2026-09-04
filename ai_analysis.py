@@ -23,13 +23,17 @@ import urllib.error
 import urllib.request
 
 import yfinance as yf
+from portfolio import holding_symbols, load_portfolio_config
 
 API_KEY = os.environ.get("SILICONFLOW_API_KEY", "")
 MODEL = os.environ.get("SF_MODEL", "Qwen/Qwen2.5-72B-Instruct")
 BASE = "https://api.siliconflow.cn/v1"
 
-HOLDINGS = ["LAZR", "INTC", "APP", "BE", "COHR", "WOLF", "NBIS", "NOW"]
+PORTFOLIO_CONFIG = load_portfolio_config()
+HOLDINGS = holding_symbols(PORTFOLIO_CONFIG)
 NEWS_TICKERS = ["^GSPC", "^IXIC", "NVDA", "AAPL", "MSFT", "TSLA", "GOOGL", "AMZN"]
+REPORT_SLOT = os.environ.get("REPORT_SLOT", "postmarket")
+REPORT_LABEL = {"premarket": "盘前作战卡", "postmarket": "收盘复盘"}.get(REPORT_SLOT, "市场报告")
 
 
 def load_market():
@@ -156,12 +160,14 @@ def build_prompt(m, news, news_source):
 
     return f"""你是专业美股投研分析师。基于【实时行情】+【多源新闻上下文】（已用本地粗分类标记主题）输出纯 JSON。
 
-【交易日】{m.get('d_latest')}（前一交易日 {m.get('d_prev')}）
+【报告类型】{REPORT_LABEL}
+【行情基准】最近常规盘收盘 {m.get('d_latest')}（前一交易日 {m.get('d_prev')}）
+盘前报告只能基于最近常规盘及已提供新闻研判，不能把前收表述为盘前实时行情。
 
 【核心指数】
 {chr(10).join(idx_lines)}
 
-【用户持仓 8 只】
+【用户持仓 {len(HOLDINGS)} 只】
 {chr(10).join(hold_lines)}
 
 【AI 五层蛋糕关键股】
@@ -212,7 +218,7 @@ def build_prompt(m, news, news_source):
   "news": [
     {{"title": "原始新闻标题（挑最重要 5-8 条）", "detail": "一句话要点", "source": "媒体源或 ticker"}}
   ],
-  "holdings_alert": "持仓预警：今日 8 只持仓里谁最强/谁最弱/是否有风险信号",
+  "holdings_alert": "持仓预警：今日配置持仓里谁最强/谁最弱/是否有风险信号",
   "tomorrow_focus": "明日/近期关注事件（基于宏观经济日历，含日期+时间+预期）"
 }}
 
@@ -285,6 +291,7 @@ def main():
     if not API_KEY:
         print("缺少环境变量 SILICONFLOW_API_KEY，跳过 AI 研判")
         empty = {
+            "report_slot": REPORT_SLOT, "report_label": REPORT_LABEL,
             "conclusion": "（未配置 SILICONFLOW_API_KEY，跳过）",
             "q4_why_buy": "", "q4_when_sell": "", "q4_emotion": "5/10", "q4_worst": "",
             "fedwatch": {"stance": "—", "stance_reason": "", "next_meeting": "—",
@@ -322,6 +329,8 @@ def main():
     analysis["generated_at"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     analysis["model"] = MODEL
     analysis["news_source"] = news_source
+    analysis["report_slot"] = REPORT_SLOT
+    analysis["report_label"] = REPORT_LABEL
     here = os.path.dirname(os.path.abspath(__file__))
     with open(os.path.join(here, "analysis.json"), "w", encoding="utf-8") as f:
         json.dump(analysis, f, ensure_ascii=False, indent=2)

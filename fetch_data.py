@@ -17,6 +17,7 @@ import sys
 import time
 import urllib.request
 import concurrent.futures as cf
+from portfolio import holding_names, holding_symbols, load_portfolio_config, option_underlyings
 
 # ---------------- 配置 ----------------
 ALL_SYMS = (
@@ -24,11 +25,13 @@ ALL_SYMS = (
     "usNVDA,usAMD,usTSM,usAVGO,usMU,usARM,usASML,usAMAT,usMRVL,usCRDO,"
     "usINTC,usWOLF,usCOHR,usMSFT,usAMZN,usGOOGL,usMETA,usORCL,usCRWV,usNBIS,"
     "usANET,usVRT,usEQIX,usLAZR,usFOTO,usEUV,usNOW,usSNOW,usNET,usAPP,"
-    "usCRM,usPLTR,usADBE,usCRWD,usAAPL,usTSLA,usVST,usCEG,usGEV,usBE,usOKLO,usNOK,usAEHR"
+    "usCRM,usPLTR,usADBE,usCRWD,usAAPL,usTSLA,usVST,usCEG,usGEV,usBE,usOKLO,usNOK,usAEHR,"
+    "usCOHX,usNBIL,usNOWL,usBEX,usAPPX"
 )
-HOLDINGS = ["usLAZR", "usINTC", "usAPP", "usBE", "usCOHR", "usWOLF", "usNBIS", "usNOW"]
-HOLD_NAME = {"usLAZR": "LAZR", "usINTC": "INTC", "usAPP": "APP", "usBE": "BE",
-             "usCOHR": "COHR", "usWOLF": "WOLF", "usNBIS": "NBIS", "usNOW": "NOW"}
+PORTFOLIO_CONFIG = load_portfolio_config()
+HOLDINGS = holding_symbols(PORTFOLIO_CONFIG, market_prefix=True)
+HOLD_NAME = holding_names(PORTFOLIO_CONFIG)
+OPTION_UNDERLYINGS = option_underlyings(PORTFOLIO_CONFIG)
 
 # A/D 涨跌家数自算样本：60 只代表性头部股票（覆盖 90%+ 市值）
 AD_SYMS_NYSE = [
@@ -543,9 +546,9 @@ def main():
     print("拉取 yfinance 宏观...")
     yf_data = fetch_yf()
 
-    # 4) 持仓期权 IV / P-C ratio（8 只核心持仓）
+    # 4) 持仓期权 IV / P-C ratio（期权标的由配置文件单独声明）
     print("拉取持仓期权数据...")
-    options_data = fetch_options(HOLDINGS)  # HOLDINGS 已是裸 ticker（LAZR/INTC/...）
+    options_data = fetch_options(OPTION_UNDERLYINGS)
 
     # 5) NYSE / NASDAQ 涨跌家数（市场宽度）
     print("拉取 NYSE/NASDAQ 涨跌家数...")
@@ -589,6 +592,12 @@ def main():
         "quotes": quotes,
         "sentiment": sent,
         "holdings": {HOLD_NAME[s]: quotes.get(s) for s in HOLDINGS},
+        "portfolio": {
+            "schema_version": PORTFOLIO_CONFIG.get("schema_version"),
+            "holdings": PORTFOLIO_CONFIG["holdings"],
+            "option_underlyings": OPTION_UNDERLYINGS,
+            "note": "Public symbol-only configuration; quantities and cost basis are intentionally excluded.",
+        },
         "earnings": earnings,
         "yf": yf_data,
         "options": options_data,

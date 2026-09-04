@@ -98,14 +98,26 @@ NBIS 210.63 (+3.2%) · NOW 145.59 (+6.49%)
 
 ## 修改持仓 / 观察股
 
+编辑 `portfolio_config.json`：
+- `holdings` —— 当前股票持仓/观察仓代码及 `core`、`watch` 分类
+- `option_underlyings` —— 需要跟踪期权 IV 与 P/C ratio 的标的
+
+该文件刻意不保存数量、成本价、账户余额或券商凭据，可安全用于公开仓库。更新一次后，行情抓取、AI 研判、HTML 看板和 Telegram 推送会同时使用新名单。
+
 编辑 `fetch_data.py` 顶部：
-- `HOLDINGS` —— 核心持仓 8 只
-- `ALL_SYMS` —— 拉取行情的完整标的池
+- `ALL_SYMS` —— 拉取行情的完整标的池（新持仓需同时确保在此列表）
 - `FOCUS` —— 财报日历过滤池
 
 编辑 `gen_dashboard.py` 顶部：
 - `LAYERS` —— AI 五层蛋糕分组
 - `MATRIX_LAYERS` —— 趋势热力矩阵分组
+
+### 报告时段与数据口径
+
+工作流由 `should_notify.py` 判定 `premarket` 或 `postmarket`，并传给 AI、HTML 与 Telegram：
+
+- **盘前作战卡**：明确标注为最近常规盘收盘数据与新闻上下文；不会把前收误写为盘前实时报价。
+- **收盘复盘**：使用最近一个美东常规盘交易日的收盘数据。
 
 ## 免责声明
 

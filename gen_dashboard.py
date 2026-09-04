@@ -10,6 +10,7 @@ import json
 import os
 import datetime
 import html as _html
+from portfolio import holding_names, holding_symbols, load_portfolio_config, option_underlyings
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -21,9 +22,10 @@ def esc(s):
     return _html.escape(str(s), quote=True)
 
 # ---------------- 持仓与五层蛋糕分组（黄仁勋框架） ----------------
-HOLDINGS = ["usLAZR", "usINTC", "usAPP", "usBE", "usCOHR", "usWOLF", "usNBIS", "usNOW"]
-HOLD_NAME = {"usLAZR": "LAZR", "usINTC": "INTC", "usAPP": "APP", "usBE": "BE",
-             "usCOHR": "COHR", "usWOLF": "WOLF", "usNBIS": "NBIS", "usNOW": "NOW"}
+PORTFOLIO_CONFIG = load_portfolio_config()
+HOLDINGS = holding_symbols(PORTFOLIO_CONFIG, market_prefix=True)
+HOLD_NAME = holding_names(PORTFOLIO_CONFIG)
+OPTION_UNDERLYINGS = option_underlyings(PORTFOLIO_CONFIG)
 HOLD_SET = set(HOLDINGS)
 
 LAYERS = [
@@ -83,6 +85,13 @@ SENT = M.get("sentiment", {})
 YF = M.get("yf", {})
 D_LATEST = M.get("d_latest", "—")
 D_PREV = M.get("d_prev", "—")
+REPORT_SLOT = os.environ.get("REPORT_SLOT", A.get("report_slot", "postmarket"))
+REPORT_LABEL = {"premarket": "盘前作战卡", "postmarket": "收盘复盘"}.get(REPORT_SLOT, "市场报告")
+DATA_BASIS = (
+    f"盘前判断基于最近常规盘 {D_LATEST} 收盘（vs {D_PREV}），不等同于盘前实时报价"
+    if REPORT_SLOT == "premarket"
+    else f"数据截至 {D_LATEST} 美东收盘（vs {D_PREV}）"
+)
 # 显式指定 UTC+8（北京时间 CST）—— GitHub Actions ubuntu 默认时区是 UTC，
 # 用 naive datetime.now() 会把 UTC 时间错标为"北京时间"，提前 8 小时
 CST = datetime.timezone(datetime.timedelta(hours=8))
@@ -239,11 +248,10 @@ for exch_label, k in [("NYSE", "nyse"), ("NASDAQ", "nasdaq")]:
         ad_html += (f'<div class="ad-cell"><div class="ex">{exch_label}</div>'
                     f'<div class="ratio">—</div><div class="num">暂无数据</div></div>')
 
-# 持仓期权 IV / P-C ratio（核心 8 只）
+# 持仓期权 IV / P-C ratio（配置的期权标的）
 opt_data = M.get("options", {})
 opt_html = ""
-for s in HOLDINGS:
-    sym = HOLD_NAME[s]
+for sym in OPTION_UNDERLYINGS:
     d = opt_data.get(sym) or {}
     iv = d.get("iv_pct")
     pc_oi = d.get("pc_oi")
@@ -662,7 +670,7 @@ body = f"""
 <div class="wrap">
 <header>
   <div class="hdr-row">
-    <div><h1>每日美股行情看板 <span class="badge">{D_LATEST} 收盘复盘</span></h1></div>
+    <div><h1>每日美股行情看板 <span class="badge">{D_LATEST} {REPORT_LABEL}</span></h1></div>
     <div class="theme-toggle" role="group" aria-label="主题切换">
       <span class="tt-label">主题</span>
       <button class="tt-btn" data-theme="auto">跟随系统</button>
@@ -670,7 +678,7 @@ body = f"""
       <button class="tt-btn" data-theme="dark">夜间</button>
     </div>
   </div>
-  <div class="meta">生成：{GEN_TIME} · 数据截至 {D_LATEST} 美东收盘（vs {D_PREV}） · 涨红跌绿（中国习惯）· 数据源：westockdata / Nasdaq / yfinance / SiliconFlow（Qwen2.5-72B）</div>
+  <div class="meta">生成：{GEN_TIME} · {DATA_BASIS} · 涨红跌绿（中国习惯）· 数据源：westockdata / Nasdaq / yfinance / SiliconFlow（Qwen2.5-72B）</div>
 </header>
 
 <div class="card">
@@ -685,7 +693,7 @@ body = f"""
 </div>
 
 <div class="card">
-  <h2>② 核心指标速览 <span class="tag">{D_LATEST} 收盘</span></h2>
+  <h2>② 核心指标速览 <span class="tag">最近常规盘 {D_LATEST}</span></h2>
   <div class="grid4">{idx_html}</div>
   <h2 style="font-size:13.5px;margin-top:16px">市场宽度 · 涨跌家数 <span class="tag">A/D ratio</span></h2>
   <div class="ad-grid">{ad_html}</div>
@@ -709,7 +717,7 @@ body = f"""
 
 <div class="card">
   <h2>⑤ 持仓与观察</h2>
-  <h2 style="font-size:13.5px">核心持仓 · 蝴蝶图（8只 · {D_LATEST} 收盘）</h2>
+  <h2 style="font-size:13.5px">核心持仓 · 蝴蝶图（{len(HOLDINGS)}只 · 最近常规盘 {D_LATEST}）</h2>
   {butterfly()}
   {hold_summary}
   <h2 style="font-size:13.5px;margin-top:18px">观察分组 · AI 五层蛋糕（黄仁勋框架 · 自上而下）</h2>
@@ -787,7 +795,7 @@ body = f"""
 </div>
 
 <div class="card">
-  <h2>⑨ 持仓期权信号 <span class="tag">IV / P-C ratio · 8 只</span></h2>
+  <h2>⑨ 持仓期权信号 <span class="tag">IV / P-C ratio · 配置的期权标的</span></h2>
   <div class="sec-desc">隐含波动率 (IV) 反映市场对后续波动的预期；P/C ratio（用 OI 计算）> 1 偏看跌，&lt; 0.7 偏看涨。来源：yfinance option_chain，取 14-45 DTE 到期日。失败/无数据项显示 —。</div>
   {opt_html or '<div class="note">暂无期权数据</div>'}
 </div>
@@ -802,7 +810,7 @@ html = f"""<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#0f1115">
-<title>每日美股行情看板 · {D_LATEST} 收盘复盘</title>
+<title>每日美股行情看板 · {D_LATEST} {REPORT_LABEL}</title>
 {THEME_JS_HEAD}
 <style>{CSS}</style>
 </head>

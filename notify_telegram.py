@@ -11,8 +11,10 @@ import json
 import os
 import urllib.parse
 import urllib.request
+from portfolio import holding_symbols, load_portfolio_config
 
-HOLDINGS = ["LAZR", "INTC", "APP", "BE", "COHR", "WOLF", "NBIS", "NOW"]
+PORTFOLIO_CONFIG = load_portfolio_config()
+HOLDINGS = holding_symbols(PORTFOLIO_CONFIG)
 
 
 def load_json(name):
@@ -52,7 +54,7 @@ def idx_html(yf, q, key, etf, etf_name):
     if _is_finite(last) and _is_finite(chg):
         sign = "+" if chg > 0 else ""
         return f"{last:,.0f} ({sign}{chg}%)"
-    x = q.get(etf, {})
+    x = (q or {}).get(etf, {})
     etf_chg = x.get("chg_pct")
     if _is_finite(etf_chg):
         sign = "+" if etf_chg > 0 else ""
@@ -66,9 +68,13 @@ def build_message():
     q = m.get("quotes", {})
     yf = m.get("yf", {})
     d = m.get("d_latest", "—")
+    report_slot = os.environ.get("REPORT_SLOT", a.get("report_slot", "postmarket"))
+    report_label = {"premarket": "盘前作战卡", "postmarket": "收盘复盘"}.get(report_slot, "市场报告")
+    data_basis = "最近常规盘收盘，不等同于盘前实时报价" if report_slot == "premarket" else "常规盘收盘数据"
 
     parts = [
-        f"📊 <b>美股 {esc(d)} 收盘复盘</b>（自动化）",
+        f"📊 <b>美股 {esc(d)} {esc(report_label)}</b>（自动化）",
+        f"<i>数据口径：{esc(data_basis)}</i>",
         "",
         "【一句话结论】",
         esc(a.get("conclusion", "（暂无）")),
@@ -94,7 +100,7 @@ def build_message():
             else:
                 last_s = str(last)
             hold_lines.append(f"{h} {last_s} ({sign}{c}%)")
-    parts.append("【持仓 8 只】")
+    parts.append(f"【配置持仓 {len(HOLDINGS)} 只】")
     parts.append(" · ".join(hold_lines))
     parts.append("")
 

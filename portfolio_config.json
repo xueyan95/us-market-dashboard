@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "holdings": [
+    {"symbol": "INTC", "bucket": "core"},
+    {"symbol": "WOLF", "bucket": "core"},
+    {"symbol": "LAZR", "bucket": "watch"},
+    {"symbol": "COHX", "bucket": "watch"},
+    {"symbol": "NBIL", "bucket": "watch"},
+    {"symbol": "NOWL", "bucket": "watch"},
+    {"symbol": "BEX", "bucket": "watch"},
+    {"symbol": "APPX", "bucket": "watch"}
+  ],
+  "option_underlyings": ["INTC", "NOK", "ORCL"]
+}
