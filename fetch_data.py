@@ -18,6 +18,7 @@ import time
 import urllib.request
 import concurrent.futures as cf
 import math
+from zoneinfo import ZoneInfo
 from portfolio import holding_names, holding_symbols, load_effective_portfolio, option_underlyings
 from portfolio_snapshot import load_portfolio_snapshot, snapshot_equity_symbols
 
@@ -34,6 +35,15 @@ PORTFOLIO_CONFIG = load_effective_portfolio()
 HOLDINGS = holding_symbols(PORTFOLIO_CONFIG, market_prefix=True)
 HOLD_NAME = holding_names(PORTFOLIO_CONFIG)
 OPTION_UNDERLYINGS = option_underlyings(PORTFOLIO_CONFIG)
+REPORT_SLOT = os.environ.get("REPORT_SLOT", "postmarket")
+
+# 盘前只抓持仓 + 指数/板块 ETF + AI 主线核心标的，避免无 Key 行情源过载。
+PREMARKET_CORE = [
+    "SPY", "QQQ", "IWM", "DIA", "SMH", "XLK", "IGV", "XLF", "XLE", "GLD",
+    "NVDA", "AMD", "TSM", "AVGO", "MU", "ARM", "ASML", "AMAT", "MRVL", "CRDO",
+    "INTC", "WOLF", "MSFT", "AMZN", "GOOGL", "META", "ORCL", "CRWV", "NBIS",
+    "ANET", "VRT", "EQIX", "COHR", "NOW", "SNOW", "APP", "PLTR", "VST", "CEG",
+]
 
 # A/D 涨跌家数代理样本：60 只代表性大盘股；不代表交易所全量宽度。
 AD_SYMS_NYSE = [
@@ -72,6 +82,103 @@ def _yf_chg(sym):
         return (last / prev - 1) * 100
     except Exception:
         return None
+
+
+def compute_premarket_change(price, previous_close):
+    """Return the pre-market move versus the prior regular-session close."""
+    if price is None or previous_close in (None, 0):
+        return None
+    return round((float(price) / float(previous_close) - 1) * 100, 2)
+
+
+def _fetch_one_premarket(symbol, previous_close, now_et):
+    """Fetch the latest bar in today's 04:00-09:29 ET pre-market window."""
+    try:
+        import yfinance as yf
+        history = yf.Ticker(symbol).history(period="2d", interval="5m", prepost=True)
+        if history is None or history.empty or "Close" not in history:
+            return symbol, None
+        index = history.index
+        if index.tz is None:
+            index = index.tz_localize("UTC")
+        index = index.tz_convert("America/New_York")
+        valid = []
+        for stamp, value in zip(index, history["Close"].tolist()):
+            clock = stamp.time().replace(tzinfo=None)
+            if (stamp.date() == now_et.date()
+                    and datetime.time(4, 0) <= clock < datetime.time(9, 30)
+                    and stamp <= now_et and math.isfinite(float(value))):
+                valid.append((stamp, float(value)))
+        if not valid:
+            return symbol, None
+        stamp, price = valid[-1]
+        return symbol, {
+            "price": round(price, 4),
+            "previous_close": round(float(previous_close), 4),
+            "change_pct": compute_premarket_change(price, previous_close),
+            "as_of": stamp.isoformat(),
+            "source": "yfinance 5m extended-hours",
+            "status": "ok",
+        }
+    except Exception as exc:  # noqa: BLE001
+        print(f"  [premarket] {symbol} 失败: {exc}")
+        return symbol, None
+
+
+def fetch_premarket_quotes(quotes):
+    """Fetch extended-hours quotes for holdings and the core research universe."""
+    now_et = datetime.datetime.now(ZoneInfo("America/New_York"))
+    symbols = list(dict.fromkeys(
+        [s.removeprefix("us") for s in HOLDINGS] + PREMARKET_CORE
+    ))
+    requests = []
+    for symbol in symbols:
+        previous_close = (quotes.get(f"us{symbol}") or {}).get("last")
+        if previous_close is not None:
+            requests.append((symbol, previous_close))
+    results = {}
+    with cf.ThreadPoolExecutor(max_workers=8) as pool:
+        futures = [pool.submit(_fetch_one_premarket, symbol, close, now_et)
+                   for symbol, close in requests]
+        for future in cf.as_completed(futures):
+            symbol, value = future.result()
+            if value:
+                results[symbol] = value
+    latest = max((x["as_of"] for x in results.values()), default=None)
+    return {
+        "available": bool(results),
+        "as_of": latest,
+        "reference_close_date": None,
+        "scope": "holdings+core",
+        "requested": len(requests),
+        "available_count": len(results),
+        "quotes": results,
+    }
+
+
+def build_news_delta(news_data, reference_close_date, extracted_at=None):
+    """Select news published from 16:00 ET after the reference session close."""
+    et = ZoneInfo("America/New_York")
+    end = extracted_at or datetime.datetime.now(et)
+    if end.tzinfo is None:
+        end = end.replace(tzinfo=et)
+    start = datetime.datetime.combine(
+        datetime.date.fromisoformat(reference_close_date), datetime.time(16, 0), tzinfo=et
+    )
+    items = []
+    for item in news_data.get("items", []):
+        try:
+            stamp = float(item.get("published_ts") or 0)
+        except (TypeError, ValueError):
+            stamp = 0
+        if stamp and start.timestamp() <= stamp <= end.timestamp():
+            items.append(item)
+    return {
+        "window_start": start.isoformat(),
+        "window_end": end.isoformat(),
+        "count": len(items),
+        "items": items,
+    }
 
 # 关注池（财报过滤用）
 FOCUS = {"NVDA", "AMD", "TSM", "AVGO", "MU", "ARM", "ASML", "AMAT", "MRVL", "CRDO",
@@ -668,6 +775,8 @@ def main():
         raise RuntimeError("K 线数据不足，拒绝生成可能误导的看板")
     d_latest = all_dates[-1]
     d_prev = all_dates[-2]
+    today_et = datetime.datetime.now(ZoneInfo("America/New_York")).date().isoformat()
+    premarket_reference_date = d_prev if d_latest >= today_et else d_latest
 
     # 每只股票：最新价、当日涨跌、1周/1月/3月涨跌
     quotes = {}
@@ -714,10 +823,32 @@ def main():
     print("拉取 yfinance 宏观...")
     yf_data = fetch_yf()
 
+    # 3b) 盘前分时行情：只在 premarket slot 请求，盘后保持原有日线口径。
+    premarket = {"available": False, "quotes": {}, "scope": "holdings+core",
+                 "requested": 0, "available_count": 0, "as_of": None,
+                 "reference_close_date": d_latest}
+    if REPORT_SLOT == "premarket":
+        print("拉取盘前分时行情（持仓 + 核心池）...")
+        reference_quotes = {symbol: dict(value) for symbol, value in quotes.items()}
+        for symbol, value in reference_quotes.items():
+            reference_close = rows.get(symbol, {}).get(premarket_reference_date)
+            if reference_close is not None:
+                value["last"] = reference_close
+        premarket = fetch_premarket_quotes(reference_quotes)
+        premarket["reference_close_date"] = premarket_reference_date
+        print(f"  盘前覆盖: {premarket['available_count']}/{premarket['requested']}")
+
     # 4) 持仓期权 IV / P-C ratio（期权标的由配置文件单独声明）
     print("拉取持仓期权数据...")
     options_data = fetch_options(OPTION_UNDERLYINGS)
-    private_snapshot = enrich_portfolio_snapshot(private_snapshot, quotes)
+    valuation_quotes = {symbol: dict(value) for symbol, value in quotes.items()}
+    if REPORT_SLOT == "premarket":
+        for symbol, item in premarket.get("quotes", {}).items():
+            key = f"us{symbol}"
+            if key in valuation_quotes:
+                valuation_quotes[key]["last"] = item.get("price")
+                valuation_quotes[key]["chg_pct"] = item.get("change_pct")
+    private_snapshot = enrich_portfolio_snapshot(private_snapshot, valuation_quotes)
 
     # 5) NYSE / NASDAQ 涨跌家数（市场宽度）
     print("拉取 NYSE/NASDAQ 涨跌家数...")
@@ -734,6 +865,10 @@ def main():
                 news_data = json.load(f)
     except Exception as e:  # noqa: BLE001
         print(f"  [news] 拉取失败: {e}")
+    news_reference_date = premarket_reference_date if REPORT_SLOT == "premarket" else d_latest
+    news_delta = build_news_delta(news_data, news_reference_date)
+    if REPORT_SLOT == "premarket":
+        print(f"  隔夜增量新闻: {news_delta['count']} 条（自 {news_delta['window_start']}）")
 
     # 7) 宏观经济日历（未来 7 天 + 已发布数据）
     econ_calendar = fetch_econ_calendar(days=7)
@@ -757,8 +892,9 @@ def main():
         except ValueError:
             pass
     stale_snapshot = snapshot_age_hours is not None and snapshot_age_hours > 18
+    premarket_degraded = (REPORT_SLOT == "premarket" and not premarket.get("available"))
     health = {
-        "status": "ok" if not missing_change and not stale_snapshot else "degraded",
+        "status": "ok" if not missing_change and not stale_snapshot and not premarket_degraded else "degraded",
         "quote_count": len(quotes),
         "required_quote_count": len(required),
         "missing_change": missing_change,
@@ -768,13 +904,25 @@ def main():
         "portfolio_age_hours": snapshot_age_hours,
         "portfolio_stale": stale_snapshot,
         "portfolio_available": bool(private_snapshot.get("available")),
+        "premarket_requested": premarket.get("requested", 0),
+        "premarket_available": premarket.get("available_count", 0),
     }
 
     result = {
         "generated_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "d_latest": d_latest,
         "d_prev": d_prev,
+        "session_context": {
+            "report_slot": REPORT_SLOT,
+            "target_session_date": today_et if REPORT_SLOT == "premarket" else d_latest,
+            "extracted_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "reference_close_date": news_reference_date,
+            "reference_close_time": f"{news_reference_date}T16:00:00 America/New_York",
+            "portfolio_valuation_basis": ("premarket where available; options at latest regular quote"
+                                          if REPORT_SLOT == "premarket" else "regular close"),
+        },
         "quotes": quotes,
+        "premarket": premarket,
         "sentiment": sent,
         "holdings": {HOLD_NAME[s]: quotes.get(s) for s in HOLDINGS},
         "portfolio": {
@@ -789,6 +937,7 @@ def main():
         "options": options_data,
         "adv_dec": adv_dec,
         "news": news_data,
+        "news_delta": news_delta,
         "econ_calendar": econ_calendar,
         "rate_context": rate_context,
         "fedwatch": rate_context,

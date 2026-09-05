@@ -11,13 +11,20 @@ STATE = HERE / ".state"
 def main():
     market = json.loads((HERE / "market_data.json").read_text(encoding="utf-8"))
     snapshot = market.get("private_portfolio_snapshot", {})
+    report_slot = market.get("session_context", {}).get("report_slot", "postmarket")
+    if report_slot == "premarket":
+        pm = market.get("premarket", {}).get("quotes", {})
+        moves = {item.get("symbol"): (pm.get(item.get("symbol")) or {}).get("change_pct")
+                 for item in snapshot.get("equities", []) if item.get("symbol")}
+    else:
+        moves = {k: v.get("chg_pct") for k, v in market.get("holdings", {}).items() if v}
     current = {
         "as_of": snapshot.get("as_of"),
         "positions": [(x.get("symbol"), x.get("quantity")) for x in snapshot.get("equities", [])],
         "options": [(x.get("underlying"), x.get("expiration_date"), x.get("strike"), x.get("quantity"))
                     for x in snapshot.get("options", [])],
         "risk": snapshot.get("risk", {}),
-        "moves": {k: v.get("chg_pct") for k, v in market.get("holdings", {}).items() if v},
+        "moves": moves,
     }
     prior_path = STATE / "previous.json"
     prior = json.loads(prior_path.read_text()) if prior_path.exists() else {}
@@ -27,7 +34,7 @@ def main():
     if current["positions"] != prior.get("positions") or current["options"] != prior.get("options"):
         reasons.append("positions changed")
     if any(abs(float(v or 0)) >= 5 for v in current["moves"].values()):
-        reasons.append("holding moved >=5%")
+        reasons.append("holding premarket gap >=5%" if report_slot == "premarket" else "holding moved >=5%")
     risk = current["risk"]
     if risk.get("cash_pct", 100) < 10 or risk.get("options_pct", 0) > 25 or risk.get("largest_position_pct", 0) > 25:
         reasons.append("risk threshold breached")

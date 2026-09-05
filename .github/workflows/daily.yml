@@ -8,8 +8,8 @@ on:
     - cron: '0 0 * * *'
     # 21:00 CST = 13:00 UTC — 盘前（夏令时 3月-11月初）
     - cron: '0 13 * * *'
-    # 22:00 CST = 14:30 UTC — 盘前（冬令时 11月初-3月初）
-    - cron: '30 14 * * *'
+    # 22:00 CST = 14:00 UTC — 盘前（冬令时 11月初-3月初，09:00 ET）
+    - cron: '0 14 * * *'
   workflow_dispatch:
     inputs:
       report_slot:
@@ -87,6 +87,8 @@ jobs:
 
       - name: Fetch market data
         if: ${{ fromJSON(steps.slot.outputs.slot_json).slot != 'skip' }}
+        env:
+          REPORT_SLOT: ${{ fromJSON(steps.slot.outputs.slot_json).slot }}
         run: python fetch_data.py
 
       - name: Validate dashboard inputs

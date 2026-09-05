@@ -7,7 +7,7 @@ should_notify.py — 决定 GitHub Actions 这一轮跑下来要不要推 Telegr
   - cron UTC 时间（由 workflow 用 ${{ github.event.schedule }} 传入 → env SLOT_UTC）
     '0 0'   收盘复盘
     '0 13'  盘前（夏令时 21:00 CST）
-    '30 14' 盘前（冬令时 22:00 CST）
+    '0 14'  盘前（冬令时 22:00 CST）
   - 也支持手动传参 --cron='HH MM'；默认从 env SLOT_UTC 读
 
 输出到 stdout 一行 JSON：
@@ -84,14 +84,14 @@ def classify_slot(cron_hh, cron_mm, dst):
 
     '0 0'        → postmarket（收盘复盘，固定 08:00 CST，不受 DST 影响）
     '0 13' (DST)  → premarket（盘前 21:00 CST，夏令时有效）
-    '30 14' (noDST)→ premarket（盘前 22:00 CST，冬令时有效）
+    '0 14' (noDST) → premarket（盘前 22:00 CST / 09:00 ET，冬令时有效）
     其他组合 → skip
     """
     if cron_hh == 0 and cron_mm == 0:
         return "postmarket"
     if dst and cron_hh == 13 and cron_mm == 0:
         return "premarket"
-    if (not dst) and cron_hh == 14 and cron_mm == 30:
+    if (not dst) and cron_hh == 14 and cron_mm == 0:
         return "premarket"
     return "skip"
 

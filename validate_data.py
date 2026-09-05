@@ -20,6 +20,15 @@ def main():
     curve = market.get("rate_context", {}).get("curve_5s10s_bp")
     if curve is not None and abs(float(curve)) > 1000:
         errors.append("implausible 5s10s curve")
+    if market.get("session_context", {}).get("report_slot") == "premarket":
+        for symbol, item in market.get("premarket", {}).get("quotes", {}).items():
+            price, close, change = item.get("price"), item.get("previous_close"), item.get("change_pct")
+            if price is None or close in (None, 0) or change is None:
+                errors.append(f"incomplete premarket quote: {symbol}")
+                continue
+            expected = (float(price) / float(close) - 1) * 100
+            if abs(expected - float(change)) > 0.02:
+                errors.append(f"invalid premarket change: {symbol}")
     if errors:
         raise SystemExit("Data validation failed: " + "; ".join(errors))
     print(f"Data validation passed: {health.get('quote_count')} quotes, session {market['d_latest']}")

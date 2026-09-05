@@ -48,11 +48,15 @@ def load_market():
         return json.load(f)
 
 
-def load_news():
+def load_news(m=None):
     """读 fetch_news.py 抓的 RSS 多源新闻。优先 news.json，没有再退到 yfinance。
 
     返回 (items, source_label)，items 是 [{title, source, summary, themes?}, ...]。
     """
+    if REPORT_SLOT == "premarket" and m is not None:
+        delta = m.get("news_delta", {})
+        return (delta.get("items", []) or [])[:30], "rss_incremental_since_close"
+
     here = os.path.dirname(os.path.abspath(__file__))
     path = os.path.join(here, "news.json")
     if os.path.exists(path):
@@ -90,8 +94,14 @@ def fetch_yf_news():
 
 def build_prompt(m, news, news_source):
     q = m.get("quotes", {})
+    pm = m.get("premarket", {}).get("quotes", {}) if REPORT_SLOT == "premarket" else {}
 
     def g(sym):
+        if REPORT_SLOT == "premarket":
+            x = pm.get(sym.removeprefix("us"), {})
+            if x.get("price") is not None:
+                return x.get("price"), x.get("change_pct")
+            return None, None
         x = q.get(sym, {})
         return x.get("last"), x.get("chg_pct")
 
@@ -166,11 +176,20 @@ def build_prompt(m, news, news_source):
                 econ_lines.append(f"- {d_str} {e.get('time', '—')} {ev}（权重{e['weight']}）{forecast_str}{actual_str}")
     econ_text = "\n".join(econ_lines[:15]) or "（近 7 日无高重要性宏观数据）"
 
-    return f"""你是专业美股投研分析师。基于【实时行情】+【多源新闻上下文】（已用本地粗分类标记主题）输出纯 JSON。
+    news_delta = m.get("news_delta", {})
+    reference_close_date = m.get("session_context", {}).get("reference_close_date", m.get("d_latest"))
+    if REPORT_SLOT == "premarket":
+        slot_guidance = f"""这是盘前增量报告。报价为可用时的盘前价相对 {reference_close_date} 16:00 ET 常规盘收盘的变化；无盘前报价的标的显示为无数据，不能描述成实时价格。
+新闻只覆盖 {news_delta.get('window_start', '昨日16:00 ET')} 至 {news_delta.get('window_end', '提取时点')} 的新增内容。
+重点回答：隔夜新增了什么、预期发生了什么变化、异常 gap 是否有可验证催化、开盘后应验证什么。不要复述完整昨日行情。"""
+    else:
+        slot_guidance = "这是盘后复盘。重点回答：当日市场宽度与板块表现、持仓贡献、哪些 thesis 被验证或证伪、下一交易日关注什么。"
+
+    return f"""你是专业美股投研分析师。基于【行情】+【多源新闻上下文】（已用本地粗分类标记主题）输出纯 JSON。
 
 【报告类型】{REPORT_LABEL}
 【行情基准】最近常规盘收盘 {m.get('d_latest')}（前一交易日 {m.get('d_prev')}）
-盘前报告只能基于最近常规盘及已提供新闻研判，不能把前收表述为盘前实时行情。
+{slot_guidance}
 
 【核心指数】
 {chr(10).join(idx_lines)}
@@ -203,6 +222,9 @@ def build_prompt(m, news, news_source):
 
 {{
   "conclusion": "一句话结论（中文；只总结已提供事实，因果必须写成推断；没有资金流数据时禁止声称资金流入/流出）",
+  "overnight_summary": "仅盘前填写：隔夜价格与新增信息摘要；盘后留空",
+  "gap_alerts": [{{"symbol": "代码", "change_pct": "相对昨收变化", "possible_driver": "有新闻证据则列出，否则写未发现可验证催化"}}],
+  "opening_checks": ["仅盘前填写的开盘后验证项；盘后留空"],
   "q4_why_buy": "不要替用户建议买入；列出持仓逻辑仍需验证的证据",
   "q4_when_sell": "交易前4问·第2问：什么情况认错卖（具体触发条件）",
   "q4_emotion": "交易前4问·第3问：情绪 0-10 分 + 一句话（≥7 分建议等24小时）",
@@ -246,6 +268,8 @@ def build_prompt(m, news, news_source):
 - news 给 5-8 条精选（跨主题）
 - 事实只能来自所提供的行情、标题、摘要和 URL；观点必须标为“推断”
 - 已经公布的事件不得写成明日关注；不能从股价上涨反推财报超预期
+- 盘前 gap 必须来自所提供的盘前报价；没有对应新闻时明确写“未发现可验证催化”，不得强行归因
+- 盘后将 overnight_summary 留空、gap_alerts 和 opening_checks 输出空数组
 - 不输出“可以买入/卖出”这类泛化建议，交易前四问只用于验证和证伪
 - 中文输出
 """
@@ -300,7 +324,7 @@ def call_siliconflow(prompt):
     raise RuntimeError(f"SiliconFlow 全部尝试失败，最后错误: {last_err}")
 
 
-def validate_grounding(analysis, news):
+def validate_grounding(analysis, news, market=None):
     """Drop AI cards that cannot be traced to one of the supplied URLs."""
     source_by_url = {str(item.get("link", "")).strip(): item for item in news if item.get("link")}
 
@@ -331,6 +355,22 @@ def validate_grounding(analysis, news):
     analysis["news_themes"] = grounded_themes
     analysis["grounding"] = {"input_news": len(news), "verified_cards": len(cards),
                               "verified_themes": len(grounded_themes)}
+    if REPORT_SLOT == "premarket":
+        supplied = ((market or {}).get("premarket", {}).get("quotes", {}))
+        grounded_alerts = []
+        for alert in analysis.get("gap_alerts", [])[:8]:
+            symbol = str(alert.get("symbol", "")).upper().replace("$", "").strip()
+            quote = supplied.get(symbol)
+            if not quote:
+                continue
+            alert["symbol"] = symbol
+            alert["change_pct"] = quote.get("change_pct")
+            grounded_alerts.append(alert)
+        analysis["gap_alerts"] = grounded_alerts
+    else:
+        analysis["overnight_summary"] = ""
+        analysis["gap_alerts"] = []
+        analysis["opening_checks"] = []
     return analysis
 
 
@@ -340,6 +380,7 @@ def main():
         empty = {
             "report_slot": REPORT_SLOT, "report_label": REPORT_LABEL,
             "conclusion": "（未配置 SILICONFLOW_API_KEY，跳过）",
+            "overnight_summary": "", "gap_alerts": [], "opening_checks": [],
             "q4_why_buy": "", "q4_when_sell": "", "q4_emotion": "5/10", "q4_worst": "",
             "fedwatch": {"stance": "—", "stance_reason": "", "next_meeting": "—",
                          "current_range": "—", "curve_5s10s_bp": "—",
@@ -353,19 +394,20 @@ def main():
         return
 
     m = load_market()
-    news, news_source = load_news()
+    news, news_source = load_news(m)
     print(f"加载新闻上下文: 来源={news_source}, {len(news)} 条")
 
     prompt = build_prompt(m, news, news_source)
     print(f"调用 SiliconFlow（{MODEL}）做 AI 研判...")
     try:
         analysis, actual_model = call_siliconflow(prompt)
-        analysis = validate_grounding(analysis, news)
+        analysis = validate_grounding(analysis, news, m)
     except Exception as e:  # noqa: BLE001
         print(f"SiliconFlow 调用失败: {e}")
         actual_model = None
         analysis = {
             "conclusion": "（SiliconFlow 调用失败，见日志）",
+            "overnight_summary": "", "gap_alerts": [], "opening_checks": [],
             "q4_why_buy": "", "q4_when_sell": "", "q4_emotion": "5/10", "q4_worst": "",
             "fedwatch": {"stance": "—", "stance_reason": "", "next_meeting": "—",
                          "current_range": "—", "curve_5s10s_bp": "—",

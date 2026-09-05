@@ -2,7 +2,7 @@ import json
 import unittest
 from pathlib import Path
 
-from fetch_data import completed_trading_dates, option_greeks
+from fetch_data import build_news_delta, completed_trading_dates, compute_premarket_change, option_greeks
 from should_notify import classify_slot
 
 
@@ -15,7 +15,25 @@ class CoreTests(unittest.TestCase):
     def test_slot_routing(self):
         self.assertEqual(classify_slot(0, 0, True), "postmarket")
         self.assertEqual(classify_slot(13, 0, True), "premarket")
-        self.assertEqual(classify_slot(14, 30, False), "premarket")
+        self.assertEqual(classify_slot(14, 0, False), "premarket")
+        self.assertEqual(classify_slot(14, 30, False), "skip")
+
+    def test_premarket_change_uses_previous_regular_close(self):
+        self.assertEqual(compute_premarket_change(105, 100), 5.0)
+        self.assertIsNone(compute_premarket_change(None, 100))
+
+    def test_news_delta_starts_at_4pm_eastern(self):
+        import datetime
+        from zoneinfo import ZoneInfo
+        et = ZoneInfo("America/New_York")
+        before = datetime.datetime(2026, 9, 3, 15, 59, tzinfo=et).timestamp()
+        after = datetime.datetime(2026, 9, 3, 16, 1, tzinfo=et).timestamp()
+        end = datetime.datetime(2026, 9, 4, 9, 0, tzinfo=et)
+        data = {"items": [{"title": "old", "published_ts": before},
+                          {"title": "new", "published_ts": after},
+                          {"title": "unknown", "published_ts": 0}]}
+        delta = build_news_delta(data, "2026-09-03", end)
+        self.assertEqual([x["title"] for x in delta["items"]], ["new"])
 
     def test_option_delta_is_bounded(self):
         result = option_greeks(100, 100, 365, .30, "call")

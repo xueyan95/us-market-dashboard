@@ -84,15 +84,19 @@ A = load_json("analysis.json")
 FRAMEWORK = load_json("investment_framework.json")
 
 QUOTES = M.get("quotes", {})
+PREMARKET = M.get("premarket", {})
+PM_QUOTES = PREMARKET.get("quotes", {}) or {}
 SENT = M.get("sentiment", {})
 YF = M.get("yf", {})
 D_LATEST = M.get("d_latest", "—")
 D_PREV = M.get("d_prev", "—")
+REFERENCE_CLOSE = M.get("session_context", {}).get("reference_close_date", D_LATEST)
+REPORT_DATE = M.get("session_context", {}).get("target_session_date", D_LATEST)
 PRIVATE_SNAPSHOT = M.get("private_portfolio_snapshot") or load_portfolio_snapshot()
 REPORT_SLOT = os.environ.get("REPORT_SLOT", A.get("report_slot", "postmarket"))
 REPORT_LABEL = {"premarket": "盘前作战卡", "postmarket": "收盘复盘"}.get(REPORT_SLOT, "市场报告")
 DATA_BASIS = (
-    f"盘前判断基于最近常规盘 {D_LATEST} 收盘（vs {D_PREV}），不等同于盘前实时报价"
+    f"盘前报价截至 {PREMARKET.get('as_of') or '暂无'}，相对 {REFERENCE_CLOSE} 16:00 ET 常规盘收盘"
     if REPORT_SLOT == "premarket"
     else f"数据截至 {D_LATEST} 美东收盘（vs {D_PREV}）"
 )
@@ -101,11 +105,18 @@ DATA_BASIS = (
 CST = datetime.timezone(datetime.timedelta(hours=8))
 GEN_TIME = datetime.datetime.now(CST).strftime("%Y-%m-%d %H:%M") + "（北京时间）"
 HEALTH = M.get("data_health", {})
+PM_HEALTH = (f" · 盘前报价：{HEALTH.get('premarket_available', 0)}/{HEALTH.get('premarket_requested', 0)}"
+             if REPORT_SLOT == "premarket" else "")
 
 
 def get(sym):
     q = QUOTES.get(sym, {})
     return q.get("last"), q.get("chg_pct")
+
+
+def get_premarket(sym):
+    q = PM_QUOTES.get(sym.removeprefix("us"), {})
+    return q.get("price"), q.get("change_pct"), q.get("previous_close"), q.get("as_of")
 
 
 def fmt_price(sym, digits=2):
@@ -389,6 +400,9 @@ if not ear_fwd_rows:
 # AI 研判
 concl = A.get("conclusion", "（暂无研判）")
 q4 = A.get("q4_why_buy", ""), A.get("q4_when_sell", ""), A.get("q4_emotion", "5/10"), A.get("q4_worst", "")
+overnight_summary = esc(A.get("overnight_summary", ""))
+opening_checks = A.get("opening_checks", []) or []
+gap_alerts = A.get("gap_alerts", []) or []
 news_items = A.get("news", [])
 news_source = A.get("news_source", "rss")
 
@@ -424,8 +438,9 @@ if themes:
     )
 
 # 原始新闻列表（来自 RSS 多源 news.json；不是 AI 输出的 news）
-raw_news = M.get("news", {}).get("items", []) or []
-raw_news_count = M.get("news", {}).get("count", 0)
+NEWS_VIEW = M.get("news_delta", {}) if REPORT_SLOT == "premarket" else M.get("news", {})
+raw_news = NEWS_VIEW.get("items", []) or []
+raw_news_count = NEWS_VIEW.get("count", 0)
 sources_dist = M.get("news", {}).get("sources", {})
 sources_label = " · ".join(f"{esc(k)} {v}" for k, v in sources_dist.items()) if sources_dist else ""
 
@@ -438,9 +453,10 @@ for it in raw_news[:12]:
     pub = it.get("published", "")
     if pub:
         pub = esc(str(pub[5:16].replace("T", " ")))  # MM-DD HH:MM
+    linked_title = f'<a href="{link}" target="_blank" rel="noopener">{title}</a>' if link else title
     raw_news_html += (
         f'<div class="news-card">'
-        f'<div class="news-title">{f"<a href=\"{link}\" target=\"_blank\" rel=\"noopener\">{title}</a>" if link else title}</div>'
+        f'<div class="news-title">{linked_title}</div>'
         f'<div class="news-meta"><span class="src">[{src}]</span> {pub}</div>'
         + (f'<div class="news-sum">{summary}…</div>' if summary else '')
         + '</div>'
@@ -513,6 +529,53 @@ fw = A.get("fedwatch", {})
 fede_tnx_str = f"{fw.get('tnx_chg_pct', '—')}%" if fw.get('tnx_chg_pct') not in (None, "—") else "—"
 hold_alert = A.get("holdings_alert", "")
 tomorrow = A.get("tomorrow_focus", "")
+
+
+def premarket_panel():
+    if REPORT_SLOT != "premarket":
+        return ""
+    available = []
+    for symbol, item in PM_QUOTES.items():
+        if item.get("price") is not None and item.get("change_pct") is not None:
+            available.append((symbol, item))
+    holdings_plain = {s.removeprefix("us") for s in HOLDINGS}
+    ordered = sorted(available, key=lambda pair: (
+        pair[0] not in holdings_plain, -abs(float(pair[1].get("change_pct") or 0))
+    ))
+    rows = ""
+    for symbol, item in ordered[:24]:
+        c = item.get("change_pct")
+        tag = '<span class="tag-hold">仓</span>' if symbol in holdings_plain else ""
+        stamp = str(item.get("as_of", ""))[11:16] or "—"
+        rows += (
+            f'<tr><td><b>{esc(symbol)}</b>{tag}</td>'
+            f'<td>{float(item["price"]):,.2f}</td><td>{float(item["previous_close"]):,.2f}</td>'
+            f'<td style="color:{color(c)}"><b>{arrow(c)} {chg_str(c)}</b></td>'
+            f'<td>{esc(stamp)} ET</td></tr>'
+        )
+    if not rows:
+        rows = '<tr><td colspan="5" class="muted">没有取得有效盘前成交；以下模块仍保留昨收背景。</td></tr>'
+    checks = "".join(f"<li>{esc(x)}</li>" for x in opening_checks[:6]) or "<li>暂无额外验证项</li>"
+    alerts = "".join(
+        f'<li><b>{esc(x.get("symbol", ""))} {chg_str(x.get("change_pct"))}</b>：{esc(x.get("possible_driver", ""))}</li>'
+        for x in gap_alerts[:8]
+    ) or "<li>没有经盘前报价验证的异常 gap</li>"
+    coverage = f"{PREMARKET.get('available_count', 0)}/{PREMARKET.get('requested', 0)}"
+    summary_block = f'<div class="concl">{overnight_summary}</div>' if overnight_summary else ""
+    return f"""
+<div class="card">
+  <h2>② 隔夜增量 <span class="tag">盘前价 vs {REFERENCE_CLOSE} 16:00 ET</span></h2>
+  <div class="sec-desc">截至 {esc(PREMARKET.get('as_of') or '暂无')} · 覆盖 {coverage} · 无盘前成交的标的不以昨收冒充实时价格。</div>
+  {summary_block}
+  <table><tr><th>标的</th><th>盘前价</th><th>昨收</th><th>隔夜变化</th><th>报价时间</th></tr>{rows}</table>
+  <div class="grid2" style="margin-top:14px">
+    <div><b>异常 gap 与可验证催化</b><ul class="news">{alerts}</ul></div>
+    <div><b>开盘后验证项</b><ul class="news">{checks}</ul></div>
+  </div>
+</div>"""
+
+
+PREMARKET_PANEL = premarket_panel()
 
 # 持仓汇总
 hold_summary = ""
@@ -637,6 +700,7 @@ th:first-child,td:first-child{text-align:left}
 tr:last-child td{border-bottom:none}
 .up{color:var(--red)}.down{color:var(--green)}.flat{color:var(--sub)}
 .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
 .idx{background:var(--card2);border-radius:12px;padding:14px;text-align:center}
 .idx .n{font-size:20px;font-weight:700}
 .idx .l{font-size:12px;color:var(--sub);margin-bottom:4px}
@@ -751,6 +815,7 @@ td .rsi-lbl{color:inherit}
 a{color:var(--accent)}
 @media(max-width:640px){
  .grid4{grid-template-columns:repeat(2,1fr)}
+ .grid2{grid-template-columns:1fr}
  .kv{grid-template-columns:repeat(2,1fr)}
  th,td{font-size:11.5px;padding:6px 5px}
  .butter .row{grid-template-columns:54px 1fr 90px}
@@ -768,11 +833,23 @@ mq.addEventListener('change',function(){if(saved==='auto')apply('auto');});apply
 </script>"""
 
 
+if REPORT_SLOT == "premarket":
+    AI_TITLE = "① 盘前增量研判"
+    Q4_TITLES = ("隔夜新增证据", "开盘后何时认错", "当前情绪", "最差开盘情形")
+    NEWS_TAG = f"16:00 ET 后新增 · {raw_news_count} 条"
+    NEWS_DESC = "仅展示昨日常规盘收盘后新增且带有效发布时间的新闻；AI 卡片必须能追溯到输入 URL。"
+else:
+    AI_TITLE = "① 盘后复盘研判"
+    Q4_TITLES = ("为什么买", "什么情况认错卖", "情绪几分（0-10）", "最差会怎样")
+    NEWS_TAG = f"AI 提炼 · {len(news_cards)} 张信息卡"
+    NEWS_DESC = "展示近 48 小时新闻，并仅保留能追溯到输入 RSS URL 的 AI 卡片；事实与推断分开标记。"
+
+
 body = f"""
 <div class="wrap">
 <header>
   <div class="hdr-row">
-    <div><h1>每日美股行情看板 <span class="badge">{D_LATEST} {REPORT_LABEL}</span></h1></div>
+    <div><h1>每日美股行情看板 <span class="badge">{REPORT_DATE} {REPORT_LABEL}</span></h1></div>
     <div class="theme-toggle" role="group" aria-label="主题切换">
       <span class="tt-label">主题</span>
       <button class="tt-btn" data-theme="auto">跟随系统</button>
@@ -781,7 +858,7 @@ body = f"""
     </div>
   </div>
   <div class="meta">生成：{GEN_TIME} · {DATA_BASIS} · 涨红跌绿（中国习惯）· 数据源：westockdata / Nasdaq / yfinance / SiliconFlow</div>
-  <div class="health {'degraded' if HEALTH.get('status') != 'ok' else ''}">数据健康：{esc(HEALTH.get('status','unknown'))} · 行情 {HEALTH.get('quote_count','—')} 只 · 必需标的缺失涨跌幅：{esc(', '.join(HEALTH.get('missing_change', [])) or '无')} · 持仓快照：{esc(HEALTH.get('portfolio_as_of') or '未载入')}（{esc(HEALTH.get('portfolio_age_hours','—'))} 小时前）· 新闻：{esc(HEALTH.get('news_as_of') or '未载入')}</div>
+  <div class="health {'degraded' if HEALTH.get('status') != 'ok' else ''}">数据健康：{esc(HEALTH.get('status','unknown'))} · 行情 {HEALTH.get('quote_count','—')} 只{PM_HEALTH} · 必需标的缺失涨跌幅：{esc(', '.join(HEALTH.get('missing_change', [])) or '无')} · 持仓快照：{esc(HEALTH.get('portfolio_as_of') or '未载入')}（{esc(HEALTH.get('portfolio_age_hours','—'))} 小时前）· 新闻：{esc(HEALTH.get('news_as_of') or '未载入')}</div>
 </header>
 
 <div class="card">
@@ -791,15 +868,17 @@ body = f"""
 </div>
 
 <div class="card">
-  <h2>① AI 研判 <span class="tag">SiliconFlow · {esc(A.get('model') or '未启用')}</span></h2>
+  <h2>{AI_TITLE} <span class="tag">SiliconFlow · {esc(A.get('model') or '未启用')}</span></h2>
   <div class="concl">{concl}</div>
   <div class="q4">
-    <div><b>① 为什么买？</b> {q4[0]}</div>
-    <div><b>② 什么情况认错卖？</b> {q4[1]}</div>
-    <div><b>③ 情绪几分（0-10）？</b> <b>{q4[2]}</b>；≥7 分请等 24 小时再操作。</div>
-    <div><b>④ 最差会怎样？</b> {q4[3]}</div>
+    <div><b>① {Q4_TITLES[0]}？</b> {q4[0]}</div>
+    <div><b>② {Q4_TITLES[1]}？</b> {q4[1]}</div>
+    <div><b>③ {Q4_TITLES[2]}？</b> <b>{q4[2]}</b>；≥7 分请等 24 小时再操作。</div>
+    <div><b>④ {Q4_TITLES[3]}？</b> {q4[3]}</div>
   </div>
 </div>
+
+{PREMARKET_PANEL}
 
 <div class="card">
   <h2>② 核心指标速览 <span class="tag">最近常规盘 {D_LATEST}</span></h2>
@@ -835,7 +914,7 @@ body = f"""
   <h2 style="font-size:13.5px">核心持仓 · 蝴蝶图（{len(HOLDINGS)}只 · 最近常规盘 {D_LATEST}）</h2>
   {butterfly()}
   {hold_summary}
-  <h2 style="font-size:13.5px;margin-top:18px">Robinhood 组合面板</h2>
+  <h2 style="font-size:13.5px;margin-top:18px">Robinhood 组合面板 <span class="tag">{'股票盘前价优先；期权最近常规报价' if REPORT_SLOT == 'premarket' else '常规盘收盘估值'}</span></h2>
   {private_panel}
   <h2 style="font-size:13.5px;margin-top:18px">观察分组 · AI 五层蛋糕（黄仁勋框架 · 自上而下）</h2>
   <div class="sec-desc">标「仓」者为当前持仓；数据为 {D_LATEST} 收盘涨跌幅。</div>
@@ -851,9 +930,9 @@ body = f"""
 </div>
 
 <div class="card">
-  <h2>⑥ 重要信息 <span class="tag">AI 提炼 · {len(news_cards)} 张信息卡</span></h2>
+  <h2>⑥ 重要信息 <span class="tag">{NEWS_TAG}</span></h2>
 
-  <div class="sec-desc">仅展示能追溯到输入 RSS URL 的 AI 卡片；“事实/推断”分开标记。未覆盖某类别表示证据不足，而不是遗漏。下方为 RSS 原文（{raw_news_count} 条 / {len(sources_dist)} 个源）。</div>
+  <div class="sec-desc">{NEWS_DESC} 未覆盖某类别表示证据不足，而不是遗漏。</div>
 
   <div class="info-grid">{news_cards_html}</div>
 

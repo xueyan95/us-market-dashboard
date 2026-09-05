@@ -17,6 +17,7 @@ fetch_news.py — RSS 多源抓取（feedparser）+ yfinance 兜底，写 news.j
   - notify_telegram.py 摘要里加一条"今日焦点"
 """
 import datetime
+import calendar
 import json
 import os
 import re
@@ -113,7 +114,8 @@ def fetch_rss(source, url, limit=5, timeout=15):
                 "link": e.get("link", ""),
                 "summary": summary[:400],
                 "published": datetime.datetime(*pub[:6]).isoformat() if pub else "",
-                "published_ts": time.mktime(pub) if pub else 0,
+                # feedparser 的 *_parsed 是 UTC；timegm 避免受 runner 本地时区影响。
+                "published_ts": calendar.timegm(pub) if pub else 0,
                 "source": source,
             })
         return items

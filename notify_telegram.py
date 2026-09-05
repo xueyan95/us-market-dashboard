@@ -67,29 +67,47 @@ def build_message():
     a = load_json("analysis.json")
     q = m.get("quotes", {})
     yf = m.get("yf", {})
+    premarket = m.get("premarket", {})
+    pm_quotes = premarket.get("quotes", {}) or {}
     d = m.get("d_latest", "—")
+    reference_close = m.get("session_context", {}).get("reference_close_date", d)
+    report_date = m.get("session_context", {}).get("target_session_date", d)
     report_slot = os.environ.get("REPORT_SLOT", a.get("report_slot", "postmarket"))
     report_label = {"premarket": "盘前作战卡", "postmarket": "收盘复盘"}.get(report_slot, "市场报告")
-    data_basis = "最近常规盘收盘，不等同于盘前实时报价" if report_slot == "premarket" else "常规盘收盘数据"
+    data_basis = (f"盘前价截至 {premarket.get('as_of') or '暂无'}，相对 {reference_close} 16:00 ET 昨收"
+                  if report_slot == "premarket" else "常规盘收盘数据")
+
+    def pm_text(symbol):
+        item = pm_quotes.get(symbol, {})
+        if item.get("price") is None:
+            return f"{symbol} 盘前—"
+        change = item.get("change_pct")
+        sign = "+" if (change or 0) > 0 else ""
+        return f"{symbol} {float(item['price']):,.2f} ({sign}{change}%)"
 
     parts = [
-        f"📊 <b>美股 {esc(d)} {esc(report_label)}</b>（自动化）",
+        f"📊 <b>美股 {esc(report_date)} {esc(report_label)}</b>（自动化）",
         f"<i>数据口径：{esc(data_basis)}</i>",
         "",
         "【一句话结论】",
         esc(a.get("conclusion", "（暂无）")),
         "",
         "【三大指数 + DXY】",
-        f"{esc(idx_html(yf, q, 'spx', 'usSPY', '标普 ETF'))} · "
-        f"{esc(idx_html(yf, q, 'qqq', 'usQQQ', '纳指 ETF'))} · "
-        f"{esc(idx_html(yf, q, 'dji', 'usDIA', '道指 ETF'))} · "
-        f"{esc(idx_html(yf, q, 'dxy', None, 'DXY'))}",
+        (f"{esc(pm_text('SPY'))} · {esc(pm_text('QQQ'))} · {esc(pm_text('DIA'))} · DXY昨收 {esc(idx_html(yf, q, 'dxy', None, 'DXY'))}"
+         if report_slot == "premarket" else
+         f"{esc(idx_html(yf, q, 'spx', 'usSPY', '标普 ETF'))} · "
+         f"{esc(idx_html(yf, q, 'qqq', 'usQQQ', '纳指 ETF'))} · "
+         f"{esc(idx_html(yf, q, 'dji', 'usDIA', '道指 ETF'))} · "
+         f"{esc(idx_html(yf, q, 'dxy', None, 'DXY'))}"),
         "",
     ]
 
     # 持仓
     hold_lines = []
     for h in HOLDINGS:
+        if report_slot == "premarket":
+            hold_lines.append(pm_text(h))
+            continue
         x = q.get(f"us{h}", {})
         if x.get("last") is not None:
             c = x.get("chg_pct") or 0
@@ -103,6 +121,15 @@ def build_message():
     parts.append(f"【配置持仓 {len(HOLDINGS)} 只】")
     parts.append(" · ".join(hold_lines))
     parts.append("")
+
+    if report_slot == "premarket":
+        if a.get("overnight_summary"):
+            parts.extend(["【隔夜增量】", esc(a["overnight_summary"]), ""])
+        checks = a.get("opening_checks", []) or []
+        if checks:
+            parts.append("【开盘后验证】")
+            parts.extend(f"  · {esc(item)}" for item in checks[:5])
+            parts.append("")
 
     # FedWatch / 利率预期
     fw = a.get("fedwatch", {})
