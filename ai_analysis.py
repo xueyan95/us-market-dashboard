@@ -226,7 +226,7 @@ def build_prompt(m, news, news_source):
 【近期多源新闻上下文（{news_source}，已分类主题）】
 {news_text}
 
-请输出 JSON（response_format=json_object 强制 JSON，不要任何 markdown 包裹或额外文字），字段：
+下面是字段说明，不是回答示例。必须用本次行情与新闻完成实际分析，禁止复制字段说明；没有证据时写明数据不足。\n请输出 JSON（response_format=json_object 强制 JSON，不要任何 markdown 包裹或额外文字），字段：
 
 {{
   "conclusion": "一句话结论（中文；只总结已提供事实，因果必须写成推断；没有资金流数据时禁止声称资金流入/流出）",
@@ -307,6 +307,22 @@ def _call(model, prompt):
     return data["choices"][0]["message"]["content"]
 
 
+def validate_analysis_content(analysis):
+    """Reject schema echoes so the retry/fallback chain can recover."""
+    if not isinstance(analysis, dict):
+        raise ValueError("AI response must be an object")
+    conclusion = analysis.get("conclusion")
+    if not isinstance(conclusion, str) or len(conclusion.strip()) < 12:
+        raise ValueError("AI response lacks a substantive conclusion")
+    placeholders = ("一句话结论（中文", "只总结已提供事实", "交易前4问·第", "今日配置持仓里谁最强",
+                    "明日/近期关注事件（基于", "不要替用户建议买入；列出")
+    for key in ("conclusion", "q4_why_buy", "q4_when_sell", "q4_emotion", "q4_worst",
+                "holdings_alert", "tomorrow_focus"):
+        value = str(analysis.get(key, ""))
+        if any(marker in value for marker in placeholders):
+            raise ValueError(f"AI response copied field instructions: {key}")
+
+
 def call_siliconflow(prompt):
     """多模型降级链 + 重试。"""
     # dict.fromkeys 保序去重：当 SF_MODEL 已是降级链中的模型时不重复调用。
@@ -320,7 +336,9 @@ def call_siliconflow(prompt):
         for attempt in range(2):
             try:
                 text = _call(m, prompt)
-                return json.loads(text), m
+                analysis = json.loads(text)
+                validate_analysis_content(analysis)
+                return analysis, m
             except (urllib.error.HTTPError, urllib.error.URLError, json.JSONDecodeError, KeyError) as e:
                 last_err = e
                 print(f"  [{m}] 第{attempt + 1}次失败: {e}")
