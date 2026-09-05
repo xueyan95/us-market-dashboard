@@ -125,6 +125,11 @@ def main():
         _emit(result)
         sys.exit(0)
 
+    # Explicit manual postmarket runs may refresh the latest completed session on weekends.
+    if override == "postmarket":
+        _emit({"slot": slot, "reason": "manual refresh of latest completed session", "dst": dst})
+        return
+
     try:
         import exchange_calendars as xcals
         if not xcals.get_calendar("XNYS").is_session(today.isoformat()):
