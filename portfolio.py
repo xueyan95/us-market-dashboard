@@ -17,6 +17,15 @@ def load_portfolio_config(path=CONFIG_PATH):
     for item in holdings:
         if not isinstance(item, dict) or not str(item.get("symbol", "")).strip():
             raise ValueError("Each holding needs a non-empty symbol")
+    leveraged = config.get("leveraged_etfs", {})
+    if not isinstance(leveraged, dict):
+        raise ValueError("leveraged_etfs must be an object")
+    for symbol, item in leveraged.items():
+        if (not str(symbol).strip() or not isinstance(item, dict)
+                or not str(item.get("underlying", "")).strip()
+                or float(item.get("leverage", 0)) <= 0
+                or item.get("direction") not in {"long", "short"}):
+            raise ValueError(f"Invalid leveraged ETF mapping: {symbol}")
     return config
 
 
@@ -31,6 +40,59 @@ def holding_names(config):
 
 def option_underlyings(config):
     return [str(symbol).upper().strip() for symbol in config.get("option_underlyings", [])]
+
+
+def leveraged_etfs(config):
+    """Return normalized leveraged-ETF metadata keyed by ticker."""
+    result = {}
+    for symbol, item in config.get("leveraged_etfs", {}).items():
+        result[str(symbol).upper().strip()] = {
+            **item,
+            "underlying": str(item["underlying"]).upper().strip(),
+            "leverage": float(item["leverage"]),
+            "direction": str(item["direction"]).lower().strip(),
+        }
+    return result
+
+
+def inherit_leveraged_layer_categories(layers, config, current_symbols):
+    """Insert held leveraged ETFs beside their underlying in the same layer/category."""
+    result = [(title, subtitle, [(cat, list(symbols)) for cat, symbols in cats])
+              for title, subtitle, cats in layers]
+    locations = {
+        symbol: (layer_idx, cat_idx)
+        for layer_idx, (_, _, cats) in enumerate(result)
+        for cat_idx, (_, symbols) in enumerate(cats)
+        for symbol in symbols
+    }
+    held = set(current_symbols)
+    for ticker, item in leveraged_etfs(config).items():
+        etf_symbol = f"us{ticker}"
+        underlying = f"us{item['underlying']}"
+        if etf_symbol not in held or underlying not in locations:
+            continue
+        layer_idx, cat_idx = locations[underlying]
+        symbols = result[layer_idx][2][cat_idx][1]
+        if etf_symbol not in symbols:
+            symbols.insert(symbols.index(underlying) + 1, etf_symbol)
+    return result
+
+
+def inherit_leveraged_matrix_categories(layers, config, current_symbols):
+    """Insert held leveraged ETFs beside their underlying in the trend matrix."""
+    result = [(title, list(symbols)) for title, symbols in layers]
+    locations = {symbol: layer_idx for layer_idx, (_, symbols) in enumerate(result)
+                 for symbol in symbols}
+    held = set(current_symbols)
+    for ticker, item in leveraged_etfs(config).items():
+        etf_symbol = f"us{ticker}"
+        underlying = f"us{item['underlying']}"
+        if etf_symbol not in held or underlying not in locations:
+            continue
+        symbols = result[locations[underlying]][1]
+        if etf_symbol not in symbols:
+            symbols.insert(symbols.index(underlying) + 1, etf_symbol)
+    return result
 
 
 def load_effective_portfolio(path=CONFIG_PATH):

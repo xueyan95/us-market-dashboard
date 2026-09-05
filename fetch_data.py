@@ -19,7 +19,8 @@ import urllib.request
 import concurrent.futures as cf
 import math
 from zoneinfo import ZoneInfo
-from portfolio import holding_names, holding_symbols, load_effective_portfolio, option_underlyings
+from portfolio import (holding_names, holding_symbols, leveraged_etfs,
+                       load_effective_portfolio, option_underlyings)
 from portfolio_snapshot import load_portfolio_snapshot, snapshot_equity_symbols
 
 # ---------------- 配置 ----------------
@@ -29,7 +30,7 @@ ALL_SYMS = (
     "usINTC,usWOLF,usCOHR,usMSFT,usAMZN,usGOOGL,usMETA,usORCL,usCRWV,usNBIS,"
     "usANET,usVRT,usEQIX,usLAZR,usFOTO,usEUV,usNOW,usSNOW,usNET,usAPP,"
     "usCRM,usPLTR,usADBE,usCRWD,usAAPL,usTSLA,usVST,usCEG,usGEV,usBE,usOKLO,usNOK,usAEHR,"
-    "usCOHX,usNBIL,usNOWL,usBEX,usAPPX"
+    "usAEHG,usCOHX,usNBIL,usNOWL,usBEX,usAPPX"
 )
 PORTFOLIO_CONFIG = load_effective_portfolio()
 HOLDINGS = holding_symbols(PORTFOLIO_CONFIG, market_prefix=True)
@@ -929,6 +930,7 @@ def main():
             "schema_version": PORTFOLIO_CONFIG.get("schema_version"),
             "holdings": PORTFOLIO_CONFIG["holdings"],
             "option_underlyings": OPTION_UNDERLYINGS,
+            "leveraged_etfs": leveraged_etfs(PORTFOLIO_CONFIG),
             "note": "Public symbol-only configuration; quantities and cost basis are intentionally excluded.",
         },
         "private_portfolio_snapshot": private_snapshot,

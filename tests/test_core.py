@@ -3,6 +3,7 @@ import unittest
 from pathlib import Path
 
 from fetch_data import build_news_delta, completed_trading_dates, compute_premarket_change, option_greeks
+from portfolio import inherit_leveraged_layer_categories, leveraged_etfs, load_portfolio_config
 from should_notify import classify_slot
 
 
@@ -40,8 +41,16 @@ class CoreTests(unittest.TestCase):
         self.assertTrue(0 < result["delta_est"] < 1)
 
     def test_config_is_valid(self):
-        config = json.loads((Path(__file__).parents[1] / "portfolio_config.json").read_text())
+        config = load_portfolio_config(Path(__file__).parents[1] / "portfolio_config.json")
         self.assertTrue(config["holdings"])
+
+    def test_leveraged_etfs_inherit_underlying_category(self):
+        config = load_portfolio_config(Path(__file__).parents[1] / "portfolio_config.json")
+        layers = [("③ 基础设施", "", [("光模块/网络设备", ["usCOHR"])])]
+        result = inherit_leveraged_layer_categories(layers, config, ["usCOHX"])
+        self.assertEqual(result[0][2][0][1], ["usCOHR", "usCOHX"])
+        self.assertEqual(leveraged_etfs(config)["COHX"]["underlying"], "COHR")
+        self.assertEqual(leveraged_etfs(config)["AEHG"]["underlying"], "AEHR")
 
 
 if __name__ == "__main__":

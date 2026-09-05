@@ -90,6 +90,8 @@ Robinhood runtime snapshot 是真实持仓、期权和成本的唯一来源。`p
 
 新持仓会由 snapshot 自动加入行情抓取、AI、Telegram 和页面，不必再手工修改 `ALL_SYMS`。
 
+杠杆 ETF 在 `portfolio_config.json` 的 `leveraged_etfs` 中登记跟踪标的、每日杠杆倍数和方向。看板会把它自动放进跟踪标的所在的 AI 五层主题与趋势矩阵，并显示例如 `2x·COHR` 的标签；AI 分析也会按标的主题理解这笔风险敞口。
+
 ## 数据边界与历史
 
 - A 股当前只覆盖上证、深证、沪深300和创业板指数行情；没有可靠中文新闻源时，AI 不得补写 A 股事件。

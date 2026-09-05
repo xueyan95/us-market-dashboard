@@ -10,7 +10,9 @@ import json
 import os
 import datetime
 import html as _html
-from portfolio import holding_names, holding_symbols, load_effective_portfolio, option_underlyings
+from portfolio import (holding_names, holding_symbols, inherit_leveraged_layer_categories,
+                       inherit_leveraged_matrix_categories, leveraged_etfs,
+                       load_effective_portfolio, option_underlyings)
 from portfolio_snapshot import load_portfolio_snapshot
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -28,6 +30,7 @@ HOLDINGS = holding_symbols(PORTFOLIO_CONFIG, market_prefix=True)
 HOLD_NAME = holding_names(PORTFOLIO_CONFIG)
 OPTION_UNDERLYINGS = option_underlyings(PORTFOLIO_CONFIG)
 HOLD_SET = set(HOLDINGS)
+LEVERAGED_ETFS = leveraged_etfs(PORTFOLIO_CONFIG)
 
 LAYERS = [
     ("⑤ 应用", "应用软件 / 终端 / 消费 AI",
@@ -43,7 +46,7 @@ LAYERS = [
      [("AI芯片/GPU", ["usNVDA", "usAMD", "usAVGO", "usMRVL"]),
       ("代工/IDM", ["usTSM", "usINTC", "usWOLF"]),
       ("存储", ["usMU"]),
-      ("设备/材料/IP", ["usASML", "usAMAT", "usARM"])]),
+      ("设备/材料/IP", ["usASML", "usAMAT", "usARM", "usAEHR"])]),
     ("① 能源", "电力 / 核电（AI 供电链）",
      [("电力/IPP", ["usVST", "usCEG", "usGEV"]),
       ("氢能/燃料电池", ["usBE"]),
@@ -54,9 +57,11 @@ MATRIX_LAYERS = [
     ("⑤ 应用", ["usAAPL", "usTSLA", "usNOW", "usSNOW", "usNET", "usAPP", "usCRM", "usPLTR", "usADBE", "usCRWD"]),
     ("④ 模型 · 云厂代理", ["usMSFT", "usGOOGL", "usMETA", "usAMZN"]),
     ("③ 基础设施 · 云/NeoCloud/光模块网络", ["usORCL", "usCRWV", "usNBIS", "usLAZR", "usFOTO", "usEUV", "usCOHR", "usCRDO", "usANET", "usVRT", "usEQIX"]),
-    ("② 芯片", ["usNVDA", "usAMD", "usTSM", "usAVGO", "usMU", "usARM", "usASML", "usAMAT", "usMRVL", "usINTC", "usWOLF"]),
+    ("② 芯片", ["usNVDA", "usAMD", "usTSM", "usAVGO", "usMU", "usARM", "usASML", "usAMAT", "usAEHR", "usMRVL", "usINTC", "usWOLF"]),
     ("① 能源", ["usVST", "usCEG", "usGEV", "usBE", "usOKLO"]),
 ]
+LAYERS = inherit_leveraged_layer_categories(LAYERS, PORTFOLIO_CONFIG, HOLDINGS)
+MATRIX_LAYERS = inherit_leveraged_matrix_categories(MATRIX_LAYERS, PORTFOLIO_CONFIG, HOLDINGS)
 LAYER_SYMBOLS = {symbol for _, _, cats in LAYERS for _, symbols in cats for symbol in symbols}
 
 TREND_LABELS = [("1日", "chg_pct"), ("1周", "p1w"), ("1月", "p1m"), ("3月", "p3m")]
@@ -175,8 +180,12 @@ def cat_block(cat, items):
         p, c = get(s)
         ish = s in HOLD_SET
         hc = '<span class="tag-hold">仓</span>' if ish else ""
+        meta = LEVERAGED_ETFS.get(s.removeprefix("us"))
+        lev = (f'<span class="tag-lev" title="每日 {meta["leverage"]:g}x '
+               f'{"多头" if meta["direction"] == "long" else "空头"}跟踪 {esc(meta["underlying"])}">'
+               f'{meta["leverage"]:g}x·{esc(meta["underlying"])}</span>') if meta else ""
         chips.append(
-            f'<span class="tick{" hold" if ish else ""}" style="{heat_bg(c)}"><b>{s.replace("us","")}</b>{hc} '
+            f'<span class="tick{" hold" if ish else ""}" style="{heat_bg(c)}"><b>{s.replace("us","")}</b>{hc}{lev} '
             f'<span class="num">{fmt_price(s)}</span> <span class="chg" style="color:{color(c)}">'
             f'{arrow(c)} {chg_str(c)}</span></span>')
     label = f'<div class="catlbl">{cat}</div>' if cat else ""
@@ -208,9 +217,12 @@ def heat_matrix():
             name = s.replace("us", "")
             ish = s in HOLD_SET
             hc = '<span class="tag-hold">仓</span>' if ish else ""
+            meta = LEVERAGED_ETFS.get(name)
+            lev = (f'<span class="tag-lev" title="跟踪 {esc(meta["underlying"])}">'
+                   f'{meta["leverage"]:g}x·{esc(meta["underlying"])}</span>') if meta else ""
             q = QUOTES.get(s, {})
             cells = "".join(heat_cell(q.get(key)) for _, key in TREND_LABELS)
-            rows.append(f'<tr><td class="name">{name}{hc}</td>{cells}</tr>')
+            rows.append(f'<tr><td class="name">{name}{hc}{lev}</td>{cells}</tr>')
     return (f'<div class="heat-matrix"><table>'
             f'<tr><th>个股</th><th>1日</th><th>1周</th><th>1月</th><th>3月</th></tr>'
             f'{"".join(rows)}</table></div>')
@@ -796,6 +808,7 @@ td .rsi-lbl{color:inherit}
 .tick.hold .num,.tick.hold b{font-weight:700}
 .tick.hold{border-color:var(--gold)}
 .tag-hold{display:inline-block;background:rgba(246,195,77,.16);color:var(--gold);font-size:10px;padding:1px 5px;border-radius:8px;margin-left:2px;font-weight:700}
+.tag-lev{display:inline-block;background:rgba(91,141,239,.14);color:var(--accent);font-size:9px;padding:1px 5px;border-radius:8px;margin-left:3px;font-weight:700}
 .note{color:var(--sub);font-size:11px;margin-top:8px}
 .heat-matrix{overflow-x:auto;margin-top:4px}
 .heat-matrix table{width:100%;border-collapse:collapse;font-size:11.5px;min-width:560px}
@@ -917,13 +930,13 @@ body = f"""
   <h2 style="font-size:13.5px;margin-top:18px">Robinhood 组合面板 <span class="tag">{'股票盘前价优先；期权最近常规报价' if REPORT_SLOT == 'premarket' else '常规盘收盘估值'}</span></h2>
   {private_panel}
   <h2 style="font-size:13.5px;margin-top:18px">观察分组 · AI 五层蛋糕（黄仁勋框架 · 自上而下）</h2>
-  <div class="sec-desc">标「仓」者为当前持仓；数据为 {D_LATEST} 收盘涨跌幅。</div>
+  <div class="sec-desc">标「仓」者为当前持仓；杠杆 ETF 按跟踪标的继承主题分类，并标注每日杠杆倍数；数据为 {D_LATEST} 收盘涨跌幅。</div>
   {layer(*LAYERS[0])}
   {layer(*LAYERS[1])}
   {layer(*LAYERS[2])}
   {layer(*LAYERS[3])}
   {layer(*LAYERS[4])}
-  {layer("当前其他持仓", "由 Robinhood 快照自动加入，尚未配置主题分类", [("未分类", sorted(HOLD_SET - LAYER_SYMBOLS))]) if HOLD_SET - LAYER_SYMBOLS else ""}
+  {layer("当前其他持仓", "无法映射到现有主题的 Robinhood 持仓", [("未分类", sorted(HOLD_SET - LAYER_SYMBOLS))]) if HOLD_SET - LAYER_SYMBOLS else ""}
   <h2 style="font-size:13.5px;margin-top:20px">趋势热力矩阵 <span class="tag">1日 / 1周 / 1月 / 3月</span></h2>
   <div class="sec-desc">行=个股（按五层分组），列=多周期涨跌幅；背景色块深浅=幅度，红=涨、绿=跌。数据：westockdata 70 日K线，截至 {D_LATEST}。</div>
   {heat_matrix()}

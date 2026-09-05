@@ -25,7 +25,7 @@ import urllib.error
 import urllib.request
 
 import yfinance as yf
-from portfolio import holding_symbols, load_effective_portfolio
+from portfolio import holding_symbols, leveraged_etfs, load_effective_portfolio
 
 API_KEY = os.environ.get("SILICONFLOW_API_KEY", "")
 MODEL = os.environ.get("SF_MODEL", "deepseek-ai/DeepSeek-V4-Pro")
@@ -37,6 +37,7 @@ BASE = "https://api.siliconflow.cn/v1"
 
 PORTFOLIO_CONFIG = load_effective_portfolio()
 HOLDINGS = holding_symbols(PORTFOLIO_CONFIG)
+LEVERAGED_ETFS = leveraged_etfs(PORTFOLIO_CONFIG)
 NEWS_TICKERS = ["^GSPC", "^IXIC", "NVDA", "AAPL", "MSFT", "TSLA", "GOOGL", "AMZN"]
 REPORT_SLOT = os.environ.get("REPORT_SLOT", "postmarket")
 REPORT_LABEL = {"premarket": "盘前作战卡", "postmarket": "收盘复盘"}.get(REPORT_SLOT, "市场报告")
@@ -116,7 +117,14 @@ def build_prompt(m, news, news_source):
         fmt("usSPY", "标普500"), fmt("usQQQ", "纳斯达克"),
         fmt("usDIA", "道琼斯"), fmt("usIWM", "罗素2000"),
     ]
-    hold_lines = [fmt(f"us{h}", h) for h in HOLDINGS]
+    hold_lines = []
+    for h in HOLDINGS:
+        meta = LEVERAGED_ETFS.get(h)
+        label = h
+        if meta:
+            direction = "多头" if meta["direction"] == "long" else "空头"
+            label = f"{h} [每日{meta['leverage']:g}x{direction}ETF→{meta['underlying']}，继承标的主题分类]"
+        hold_lines.append(fmt(f"us{h}", label))
 
     cake = [
         "⑤应用: " + ", ".join(fmt(s, n) for s, n in
@@ -130,7 +138,7 @@ def build_prompt(m, news, news_source):
         "②芯片: " + ", ".join(fmt(s, n) for s, n in
             [("usNVDA", "NVDA"), ("usAMD", "AMD"), ("usTSM", "TSM"), ("usAVGO", "AVGO"),
              ("usMU", "MU"), ("usARM", "ARM"), ("usASML", "ASML"), ("usAMAT", "AMAT"),
-             ("usMRVL", "MRVL"), ("usINTC", "INTC"), ("usWOLF", "WOLF")]),
+             ("usMRVL", "MRVL"), ("usINTC", "INTC"), ("usWOLF", "WOLF"), ("usAEHR", "AEHR")]),
         "①能源: " + ", ".join(fmt(s, n) for s, n in
             [("usVST", "VST"), ("usCEG", "CEG"), ("usGEV", "GEV"), ("usBE", "BE"), ("usOKLO", "OKLO")]),
     ]
