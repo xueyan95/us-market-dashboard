@@ -128,7 +128,7 @@ jobs:
         run: python change_detection.py
 
       - name: Notify Telegram
-        if: ${{ fromJSON(steps.slot.outputs.slot_json).slot != 'skip' && (steps.changes.outputs.actionable == 'true' || github.event_name == 'workflow_dispatch') }}
+        if: ${{ fromJSON(steps.slot.outputs.slot_json).slot != 'skip' }}
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
