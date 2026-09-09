@@ -98,6 +98,17 @@ class CoreTests(unittest.TestCase):
         grounded = validate_grounding(analysis, news, research={"entries": [{"id": "R-2"}]})
         self.assertEqual([x["record_id"] for x in grounded["research_updates"]], ["R-2"])
 
+    def test_english_translation_mirror_rejects_chinese_output(self):
+        analysis = {"news_cards": [], "news_themes": [], "upcoming_events": [],
+                    "research_updates": [], "english_translations": [
+                        {"zh": "市场上涨", "en": "The market rose"},
+                        {"zh": "风险上升", "en": "Risk 上升"},
+                    ]}
+        grounded = validate_grounding(analysis, [])
+        self.assertEqual(grounded["english_translations"], [
+            {"zh": "市场上涨", "en": "The market rose"}
+        ])
+
     def test_config_is_valid(self):
         config = load_portfolio_config(Path(__file__).parents[1] / "portfolio_config.json")
         self.assertTrue(config["holdings"])

@@ -10,6 +10,7 @@ import json
 import os
 import datetime
 import html as _html
+import re
 from portfolio import (holding_names, holding_symbols, inherit_leveraged_layer_categories,
                        inherit_leveraged_matrix_categories, leveraged_etfs,
                        load_effective_portfolio, option_underlyings)
@@ -75,6 +76,96 @@ FOCUS = {"NVDA", "AMD", "TSM", "AVGO", "MU", "ARM", "ASML", "AMAT", "MRVL", "CRD
 
 DISCLAIMER = "以上内容基于公开数据，仅供参考，不构成投资建议。市场有风险，投资需谨慎。"
 
+# Text-node translations are applied in the browser so one generated artifact can
+# switch instantly. Longer phrases win over shorter fragments. AI-generated text
+# is added below from the model's validated english_translations list.
+EN_TRANSLATIONS = {
+    "每日美股行情看板": "Daily US Market Dashboard", "收盘复盘": "Post-market Review",
+    "盘前作战卡": "Pre-market Brief", "市场报告": "Market Report", "主题": "Theme",
+    "跟随系统": "System", "白天": "Light", "夜间": "Dark", "生成：": "Generated: ",
+    "（北京时间）": " (Beijing Time)", "数据截至": "Data through", "美东收盘": "US market close",
+    "涨红跌绿（中国习惯）": "Red up / green down", "数据源：": "Sources: ",
+    "数据健康：": "Data health: ", "行情": "quotes", "必需标的缺失涨跌幅：": "Missing required changes: ",
+    "持仓快照：": "Portfolio snapshot: ", "小时前": "hours ago", "新闻：": "News: ", "无": "None",
+    "决策": "Decision", "市场": "Market", "持仓": "Portfolio", "信息": "Information",
+    "决策驾驶舱": "Decision Cockpit", "组合规则 + Thesis 验证": "Portfolio Rules + Thesis Checks",
+    "优先显示与你持仓直接相关的风险；命题是待验证假设，不是既定事实。": "Prioritizes risks tied directly to the portfolio. Every thesis remains a testable hypothesis.",
+    "现金": "Cash", "股票": "Equities", "期权": "Options", "最大单仓": "Largest position",
+    "半导体股票": "Semiconductor equities", "规则": "rule", "待验证命题": "Thesis to test",
+    "状态": "Status", "下一步验证": "Next checks", "证伪条件": "Falsifiers", "待验证": "Testing",
+    "季度 CAPEX/经营现金流；自由现金流趋势；债券发行规模与利差": "Quarterly capex/operating cash flow; free-cash-flow trend; debt issuance and spreads",
+    "主要 hyperscaler 自由现金流重新覆盖 CAPEX，且单位算力收入和 ROIC 持续改善。": "Major hyperscalers again fund capex from free cash flow while revenue per unit of compute and ROIC keep improving.",
+    "数据中心 CPU 订单/份额；18A 外部客户与良率；Foundry 亏损收窄": "Data-center CPU orders/share; 18A external customers and yield; narrowing Foundry losses",
+    "18A 客户或良率里程碑持续延迟、Foundry 现金消耗扩大、CPU 份额继续下滑。": "18A customer or yield milestones keep slipping, Foundry cash burn rises, or CPU share keeps falling.",
+    "成交量与市场宽度；信用利差；SMH 相对强弱": "Volume and breadth; credit spreads; SMH relative strength",
+    "反弹由盈利预期上修和持续增量资金共同确认，而非短期回补。": "The rebound is confirmed by earnings upgrades and persistent incremental demand rather than short covering.",
+    "我的研究输入": "My Research Inputs", "Thesis · 证伪 · 概率": "Thesis · Falsification · Probability",
+    "原始判断由你维护；AI 只把可追溯新闻映射为支持、反对、时点或替代解释，并把概率变化作为待确认建议。": "You own the original judgment. AI links traceable news as support, opposition, timing, or alternative explanations and leaves probability changes pending your approval.",
+    "研究库尚未连接。新记录默认保密，不会出现在公开看板。": "The research repository is not connected. New records are private by default and stay off the public dashboard.",
+    "尚无明确设为公开的研究记录。新记录默认保密，不会出现在公开看板。": "No research record is explicitly public. New records are private by default.",
+    "今日新闻 ↔ 研究记录": "Today's News vs Research Records",
+    "本次新闻中没有通过来源校验、可关联到公开研究记录的新证据。": "No new source-verified evidence maps to a public research record in this run.",
+    "＋ 记录新的 Thesis / Information / Question": "+ Add a Thesis / Information / Question",
+    "提交后会打开私有 GitHub 研究库的确认页。所有新记录默认保密；只有你主动选择“公开”后，内容才会进入本看板。": "Submitting opens a review page in the private GitHub research repository. New records default to private and appear here only when you explicitly make them public.",
+    "类型": "Type", "相关代码": "Related tickers", "标题": "Title", "核心内容": "Core statement",
+    "时间范围": "Time horizon", "当前主观概率（0-100）": "Current subjective probability (0-100)",
+    "支持条件": "Supporting conditions", "替代解释": "Alternative explanations", "来源链接": "Source URL",
+    "公开状态": "Visibility", "保密（默认）": "Private (default)", "公开到看板": "Public on dashboard",
+    "在私有研究库中确认并保存": "Review and save in private research repository",
+    "聊天入口：在当前聊天中说“记录为 thesis / information / question”。": "Chat input: say Save as thesis, information, or question in the current chat.",
+    "一句话说明这条记录": "Summarize this record in one sentence", "你观察到什么、推理链是什么？": "What did you observe, and what is the reasoning chain?",
+    "例如 3-6 个月": "For example, 3-6 months", "出现哪些证据会增强这条判断？": "What evidence would strengthen this view?",
+    "什么事实出现时应降低概率或放弃？": "What facts should lower the probability or invalidate it?",
+    "同一现象还可能由什么原因造成？": "What alternative explanations could produce the same observation?",
+    "盘后复盘研判": "Post-market Analysis", "盘前增量研判": "Pre-market Incremental Analysis",
+    "为什么买": "Why own it", "什么情况认错卖": "What would invalidate it", "情绪几分（0-10）": "Emotion score (0-10)",
+    "最差会怎样": "Worst case", "隔夜新增证据": "New overnight evidence", "开盘后何时认错": "Post-open invalidation",
+    "当前情绪": "Current emotion", "最差开盘情形": "Worst opening case", "请等 24 小时再操作": "wait 24 hours before acting",
+    "核心指标速览": "Core Market Snapshot", "最近常规盘": "Latest regular session", "标普500": "S&P 500",
+    "纳指": "Nasdaq", "道琼斯工业": "Dow Industrials", "罗素2000": "Russell 2000", "美元指数": "US Dollar Index",
+    "市场宽度 · 涨跌家数": "Market Breadth · Advances/Declines", "涨跌家数": "Advances/Declines",
+    "宏观数据": "Macro Data", "债市 / 商品": "Rates / Commodities", "10年期美债收益率": "10Y US Treasury yield",
+    "30年期美债收益率": "30Y US Treasury yield", "恐慌指数": "Volatility Index", "黄金期货": "Gold futures",
+    "原油": "crude oil", "比特币": "Bitcoin", "来源：": "Source: ", "收盘": "close",
+    "A 股核心指数": "Mainland China Indices", "指数行情 · 独立口径": "Index quotes · Separate methodology",
+    "上证指数": "Shanghai Composite", "深证成指": "Shenzhen Component", "沪深300": "CSI 300", "创业板指": "ChiNext",
+    "市场情绪 · 板块": "Market Sentiment · Sectors", "涨跌 + 超买超卖": "Returns + Overbought/Oversold",
+    "板块/标的": "Sector / Asset", "最新价": "Latest price", "涨跌幅": "Change", "20日乖离率": "20-day deviation",
+    "半导体": "Semiconductors", "科技": "Technology", "软件": "Software", "金融": "Financials", "能源": "Energy",
+    "黄金": "Gold", "小盘": "Small caps", "标普": "S&P", "道指": "Dow", "中性": "Neutral", "偏强": "Strong",
+    "持仓与观察": "Portfolio & Watchlist", "核心持仓 · 蝴蝶图": "Core Holdings · Butterfly Chart",
+    "蝴蝶图：向右=涨(红)、向左=跌(绿)；中央为独立信息区，不占用两侧从 0% 起算的柱图空间。": "Butterfly chart: gains extend right in red and losses extend left in green. The center label does not overlap either zero baseline.",
+    "横轴满刻度 = 当日持仓最大 |涨跌幅| =": "Full horizontal scale = largest absolute daily holding move =",
+    "自适应": "adaptive", "基准": "Reference", "今日持仓：": "Today's holdings: ", "上涨": "gainers", "下跌": "decliners",
+    "Robinhood 组合面板": "Robinhood Portfolio", "常规盘收盘估值": "Regular-session close valuation",
+    "股票盘前价优先；期权最近常规报价": "Pre-market equity prices; latest regular options quotes", "最新资产": "Latest assets",
+    "股票明细": "Equity Positions", "期权明细": "Option Positions", "代码": "Ticker", "数量": "Quantity",
+    "平均成本/张": "Average cost / contract", "平均成本": "Average cost", "现价": "Current price", "市值·权重": "Value · Weight",
+    "市值": "Market value", "权重": "Weight", "浮盈亏": "Unrealized P/L", "合约": "Contract", "到期": "Expiry",
+    "买卖价差": "Bid-ask spread", "每日": "daily", "观察分组 · AI 五层蛋糕（黄仁勋框架 · 自上而下）": "Watchlist Groups · Five-layer AI Stack (top down)",
+    "应用": "Applications", "应用软件 / 终端 / 消费 AI": "Application software / Devices / Consumer AI",
+    "终端/硬件": "Devices / Hardware", "应用软件/SaaS": "Application software / SaaS", "模型": "Models",
+    "云厂代理": "Cloud proxies", "基础设施": "Infrastructure", "光模块网络设备": "Optical and network equipment",
+    "光模块/网络设备": "Optical / Network equipment", "芯片": "Chips", "代工": "Foundry", "存储": "Memory",
+    "设备/材料": "Equipment / Materials", "电力 / 核电（AI 供电链）": "Power / Nuclear (AI power chain)",
+    "电力": "Power", "氢能/燃料电池": "Hydrogen / Fuel cells", "核能": "Nuclear", "仓": "Held",
+    "当前其他持仓": "Other Current Holdings", "无法映射到现有主题的 Robinhood 持仓": "Robinhood holdings not mapped to an existing theme",
+    "未分类": "Unclassified", "趋势热力矩阵": "Trend Heatmap", "个股": "Stock", "重要信息": "Key Information",
+    "AI 提炼": "AI digest", "张信息卡": "evidence cards", "查看全部": "View all", "条原始新闻（按时间倒序）": "source stories (newest first)",
+    "利率环境": "Rate Environment", "收盘数据 + AI 定性": "Close data + AI assessment",
+    "官方目标区间：": "Official target range: ", "下次 FOMC：": "Next FOMC: ", "收益率曲线": "Yield curve",
+    "正值=陡峭扩张 / 负值=倒挂": "positive = steepening / negative = inversion", "AI 综合定性": "AI assessment",
+    "最新 CPI": "Latest CPI", "最新 非农": "Latest payrolls", "立场理由": "Rationale", "鸽派": "Dovish", "鹰派": "Hawkish",
+    "事件日历": "Event Calendar", "公司/产品 + 宏观 + 财报": "Company/Product + Macro + Earnings",
+    "AI 近期关注 · 与 Telegram 同步": "AI Near-term Focus · Synced with Telegram", "公司 / 产品事件": "Company / Product Events",
+    "日期/时间": "Date / Time", "事件": "Event", "宏观": "Macro", "高重要性宏观事件": "High-impact Macro Events",
+    "距今": "Timing", "前值": "Previous", "预期": "Forecast", "实际": "Actual", "今天": "Today", "明天": "Tomorrow",
+    "持仓/关注池 · 近 6 日财报": "Portfolio/Watchlist · Earnings in 6 days", "公司": "Company", "财报": "earnings",
+    "标的短期期权环境": "Short-term Options Environment", "非持仓合约风险": "non-position contract risk",
+    "来源": "Source", "距离": "Time to event", "去年同期": "Prior-year period",
+    "偏看涨": "Bullish", "偏看跌": "Bearish", "以上内容基于公开数据，仅供参考，不构成投资建议。市场有风险，投资需谨慎。": "Based on public data for reference only. This is not investment advice. Investing involves risk.",
+}
+
 
 def load_json(name):
     p = os.path.join(HERE, name)
@@ -88,6 +179,15 @@ M = load_json("market_data.json")
 A = load_json("analysis.json")
 FRAMEWORK = load_json("investment_framework.json")
 RESEARCH = load_json("research_inputs.json")
+
+LANG_TRANSLATIONS = dict(EN_TRANSLATIONS)
+for pair in A.get("english_translations", []) or []:
+    zh = str(pair.get("zh", "")).strip()
+    en = str(pair.get("en", "")).strip()
+    if zh and en and not re.search(r"[\u3400-\u9fff\uf900-\ufaff]", en):
+        LANG_TRANSLATIONS[zh] = en
+LANG_TRANSLATIONS_JSON = json.dumps(LANG_TRANSLATIONS, ensure_ascii=False, separators=(",", ":")) \
+    .replace("<", "\\u003c")
 
 QUOTES = M.get("quotes", {})
 PREMARKET = M.get("premarket", {})
@@ -846,6 +946,7 @@ background:var(--bg);color:var(--txt);line-height:1.55;padding-bottom:40px;trans
 .wrap{max-width:1080px;margin:0 auto;padding:0 14px}
 header{padding:22px 0 8px}
 .hdr-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.top-controls{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:flex-end}.lang-toggle{min-height:32px;padding:4px 11px;border:1px solid var(--accent);border-radius:9px;background:rgba(76,141,255,.12);color:var(--accent);font-size:11px;font-weight:800;cursor:pointer;touch-action:manipulation}.lang-toggle:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 h1{font-size:21px;font-weight:700;letter-spacing:.5px}
 .meta{color:var(--sub);font-size:12.5px;margin-top:6px}
 .badge{display:inline-block;background:rgba(168,85,247,.15);color:#a855f7;font-size:11px;padding:2px 8px;border-radius:10px;margin-left:8px;font-weight:600}
@@ -1005,6 +1106,7 @@ a{color:var(--accent)}
  .calendar-focus{grid-template-columns:1fr;gap:4px}
  .form-grid{grid-template-columns:1fr}.form-grid .wide{grid-column:auto}.evidence-meta{flex-direction:column;gap:5px}.form-note{display:block;margin:9px 0 0}
  .tabbar{margin-left:-2px;margin-right:-2px;padding:5px;gap:4px}.tab-btn{flex-basis:82px;min-height:44px;font-size:12px}
+ .hdr-row{display:block}.top-controls{justify-content:space-between;margin-top:10px}.lang-toggle{min-height:38px}.theme-toggle{overflow-x:auto;max-width:calc(100% - 54px)}
 }
 @media print{.tabbar{display:none}.tab-panel[hidden]{display:block}.tab-panel{animation:none}}
 """
@@ -1031,6 +1133,19 @@ buttons.forEach(function(b,i){b.addEventListener('click',function(){activate(b.d
 window.addEventListener('hashchange',function(){if(location.hash.indexOf('#tab-')===0)activate(location.hash.slice(5),false);});})();
 </script>"""
 
+LANG_JS_BODY = r"""<script>
+(function(){
+var KEY='wb-dash-language',translations=__LANG_MAP__,keys=Object.keys(translations).sort(function(a,b){return b.length-a.length;});
+var cjk=/[\u3400-\u9fff\uf900-\ufaff]/,cjkAll=/[\u3400-\u9fff\uf900-\ufaff]+/g;
+function english(text){if(!cjk.test(text))return text;var trimmed=text.trim();if(translations[trimmed])return text.replace(trimmed,translations[trimmed]);var out=text;keys.forEach(function(k){if(out.indexOf(k)!==-1)out=out.split(k).join(translations[k]);});out=out.replace(cjkAll,'').replace(/，/g,', ').replace(/。/g,'. ').replace(/；/g,'; ').replace(/：/g,': ').replace(/[（）]/g,function(x){return x==='（'?' (':') ';}).replace(/[【】“”]/g,'').replace(/\s+([,.;:])/g,'$1');return /[A-Za-z0-9$%]/.test(out)?out:'Translation unavailable';}
+var walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT),texts=[],node;while(node=walker.nextNode()){if(node.parentElement&&node.parentElement.closest('script,style,#lang-toggle'))continue;texts.push([node,node.nodeValue]);}
+var attrs=[];document.querySelectorAll('[placeholder],[title],[aria-label]').forEach(function(el){['placeholder','title','aria-label'].forEach(function(name){if(el.hasAttribute(name)&&el.id!=='lang-toggle')attrs.push([el,name,el.getAttribute(name)]);});});
+var originalTitle=document.title,button=document.getElementById('lang-toggle');
+function apply(mode){var en=mode==='en';texts.forEach(function(x){x[0].nodeValue=en?english(x[1]):x[1];});attrs.forEach(function(x){x[0].setAttribute(x[1],en?english(x[2]):x[2]);});document.title=en?english(originalTitle):originalTitle;document.documentElement.lang=en?'en':'zh-CN';document.documentElement.setAttribute('data-language',mode);button.textContent=en?'ZH':'EN';button.setAttribute('aria-label',en?'Switch to Chinese':'切换为英文');localStorage.setItem(KEY,mode);}
+button.addEventListener('click',function(){apply(document.documentElement.getAttribute('data-language')==='en'?'zh':'en');});apply(localStorage.getItem(KEY)==='en'?'en':'zh');
+})();
+</script>""".replace("__LANG_MAP__", LANG_TRANSLATIONS_JSON)
+
 
 if REPORT_SLOT == "premarket":
     AI_TITLE = "① 盘前增量研判"
@@ -1049,11 +1164,14 @@ body = f"""
 <header>
   <div class="hdr-row">
     <div><h1>每日美股行情看板 <span class="badge">{REPORT_DATE} {REPORT_LABEL}</span></h1></div>
-    <div class="theme-toggle" role="group" aria-label="主题切换">
-      <span class="tt-label">主题</span>
-      <button class="tt-btn" data-theme="auto">跟随系统</button>
-      <button class="tt-btn" data-theme="light">白天</button>
-      <button class="tt-btn" data-theme="dark">夜间</button>
+    <div class="top-controls">
+      <button id="lang-toggle" class="lang-toggle" type="button" aria-label="切换为英文">EN</button>
+      <div class="theme-toggle" role="group" aria-label="主题切换">
+        <span class="tt-label">主题</span>
+        <button class="tt-btn" data-theme="auto">跟随系统</button>
+        <button class="tt-btn" data-theme="light">白天</button>
+        <button class="tt-btn" data-theme="dark">夜间</button>
+      </div>
     </div>
   </div>
   <div class="meta">生成：{GEN_TIME} · {DATA_BASIS} · 涨红跌绿（中国习惯）· 数据源：westockdata / Nasdaq / yfinance / SiliconFlow</div>
@@ -1238,6 +1356,7 @@ html = f"""<!DOCTYPE html>
 </head>
 <body>{body}
 {THEME_JS_BODY}
+{LANG_JS_BODY}
 </body>
 </html>"""
 

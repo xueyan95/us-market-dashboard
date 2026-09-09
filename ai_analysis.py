@@ -289,6 +289,9 @@ def build_prompt(m, news, news_source, research=None):
   ],
   "holdings_alert": "持仓预警：今日配置持仓里谁最强/谁最弱/是否有风险信号",
   "tomorrow_focus": "明日/近期关注事件（基于宏观经济日历，含日期+时间+预期）"
+  ,"english_translations": [
+    {"zh": "本次 JSON 中一个会展示给用户的中文字符串，必须逐字一致", "en": "Its complete English translation with no Chinese characters"}
+  ]
 }}
 
 要求：
@@ -314,7 +317,9 @@ def build_prompt(m, news, news_source, research=None):
 - 盘前 gap 必须来自所提供的盘前报价；没有对应新闻时明确写“未发现可验证催化”，不得强行归因
 - 盘后将 overnight_summary 留空、gap_alerts 和 opening_checks 输出空数组
 - 不输出“可以买入/卖出”这类泛化建议，交易前四问只用于验证和证伪
-- 中文输出
+- 主字段继续用中文输出，供中文看板与 Telegram 使用
+- english_translations 必须覆盖本次输出中所有会展示给用户的中文字符串，包括结论、四问、Fed 定性、主题、信息卡、事件、研究更新、持仓预警和近期关注；也覆盖【用户公开研究记录】里的中文标题与正文
+- english_translations.zh 必须与主字段或用户研究记录中的原文逐字一致；en 必须是完整英文且不得包含任何中文字符；英文新闻原标题、ticker、URL、媒体名和纯数字无需重复翻译
 """
 
 
@@ -328,7 +333,7 @@ def _call(model, prompt):
         "enable_thinking": True,
         "thinking_budget": THINKING_BUDGET,
         "temperature": 0.4,
-        "max_tokens": 4096,
+        "max_tokens": 8192,
     }
     req = urllib.request.Request(
         url, data=json.dumps(body).encode("utf-8"),
@@ -440,6 +445,13 @@ def validate_grounding(analysis, news, market=None, research=None):
                 update["suggested_probability"] = None
             updates.append(update)
     analysis["research_updates"] = updates
+    translations = []
+    for item in analysis.get("english_translations", [])[:160]:
+        zh = str(item.get("zh", "")).strip()
+        en = str(item.get("en", "")).strip()
+        if zh and en and re.search(r"[\u3400-\u9fff]", zh) and not re.search(r"[\u3400-\u9fff]", en):
+            translations.append({"zh": zh, "en": en})
+    analysis["english_translations"] = translations
     allowed_pairs = {(str(item.get("title", "")).strip(), str(item.get("source", "")).strip())
                      for item in news}
     grounded_themes = []
@@ -453,7 +465,8 @@ def validate_grounding(analysis, news, market=None, research=None):
     analysis["grounding"] = {"input_news": len(news), "verified_cards": len(cards),
                               "verified_themes": len(grounded_themes),
                               "verified_upcoming_events": len(events),
-                              "verified_research_updates": len(updates)}
+                              "verified_research_updates": len(updates),
+                              "verified_english_translations": len(translations)}
     if REPORT_SLOT == "premarket":
         supplied = ((market or {}).get("premarket", {}).get("quotes", {}))
         grounded_alerts = []
