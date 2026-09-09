@@ -143,6 +143,7 @@ EN_TRANSLATIONS = {
     "平均成本/张": "Average cost / contract", "平均成本": "Average cost", "现价": "Current price", "市值·权重": "Value · Weight",
     "市值": "Market value", "权重": "Weight", "浮盈亏": "Unrealized P/L", "合约": "Contract", "到期": "Expiry",
     "买卖价差": "Bid-ask spread", "每日": "daily", "观察分组 · AI 五层蛋糕（黄仁勋框架 · 自上而下）": "Watchlist Groups · Five-layer AI Stack (top down)",
+    "AI 五层蛋糕": "Five-layer AI Stack",
     "应用": "Applications", "应用软件 / 终端 / 消费 AI": "Application software / Devices / Consumer AI",
     "终端/硬件": "Devices / Hardware", "应用软件/SaaS": "Application software / SaaS", "模型": "Models",
     "云厂代理": "Cloud proxies", "基础设施": "Infrastructure", "光模块网络设备": "Optical and network equipment",
@@ -378,42 +379,6 @@ for exch_label, k in [("NYSE", "nyse"), ("NASDAQ", "nasdaq")]:
     else:
         ad_html += (f'<div class="ad-cell"><div class="ex">{exch_label}</div>'
                     f'<div class="ratio">—</div><div class="num">暂无数据</div></div>')
-
-# 持仓期权 IV / P-C ratio（配置的期权标的）
-opt_data = M.get("options", {})
-opt_html = ""
-for sym in OPTION_UNDERLYINGS:
-    d = opt_data.get(sym) or {}
-    iv = d.get("iv_pct")
-    pc_oi = d.get("pc_oi")
-    call_vol = d.get("call_vol", 0)
-    put_vol = d.get("put_vol", 0)
-    exp = d.get("expiry", "")
-    # IV 解读：高 (>50%) / 中 (30-50%) / 低 (<30%)
-    iv_text = "—"
-    iv_cls = ""
-    if iv is not None:
-        if iv > 50:
-            iv_text, iv_cls = f"{iv}% 高", "iv-high"
-        elif iv < 30:
-            iv_text, iv_cls = f"{iv}% 低", "iv-low"
-        else:
-            iv_text = f"{iv}% 中"
-    # P/C 解读（用 OI）：< 0.7 偏看涨、> 1.0 偏看跌
-    pc_text, pc_cls = "—", ""
-    if pc_oi is not None:
-        if pc_oi < 0.7:
-            pc_text, pc_cls = f"{pc_oi} 偏看涨", "pc-bull"
-        elif pc_oi > 1.0:
-            pc_text, pc_cls = f"{pc_oi} 偏看跌", "pc-bear"
-        else:
-            pc_text = f"{pc_oi} 中性"
-    exp_label = exp[5:].replace("-", "/") if exp else "—"
-    opt_html += (f'<div class="opt-row"><b>{sym}</b>'
-                 f'<span class="iv {iv_cls}">{iv_text}</span>'
-                 f'<span class="pc {pc_cls}">{pc_text}</span>'
-                 f'<span class="vol">C {call_vol:,} / P {put_vol:,}</span>'
-                 f'<span class="exp">到期 {exp_label}</span></div>')
 
 COMBINED = [("半导体 SMH", "usSMH"), ("科技 XLK", "usXLK"), ("软件 IGV", "usIGV"),
             ("金融 XLF", "usXLF"), ("能源 XLE", "usXLE"), ("黄金 GLD", "usGLD"),
@@ -1092,7 +1057,7 @@ td .rsi-lbl{color:inherit}
 .research-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}.research-card{background:var(--card2);border:1px solid var(--line);border-radius:11px;padding:13px}.research-hd{display:flex;align-items:center;gap:8px;font-size:10.5px}.research-type,.relation{color:var(--accent);background:rgba(76,141,255,.13);border-radius:6px;padding:2px 7px;font-weight:700}.research-prob{margin-left:auto;color:var(--gold);font-weight:800}.research-card h3{font-size:13.5px;margin:9px 0 5px}.research-card p{font-size:12px;line-height:1.6;margin:7px 0}.research-symbols{display:flex;gap:5px;flex-wrap:wrap}.symbol-pill{font-size:10px;padding:1px 6px;border:1px solid var(--line);border-radius:8px;color:var(--sub)}.research-line{font-size:11px;line-height:1.5;margin-top:5px;color:var(--sub)}.research-line b{color:var(--txt);margin-right:7px}.research-meta{display:flex;justify-content:space-between;margin-top:9px;font-size:10.5px;color:var(--sub)}.research-empty{padding:14px;background:var(--card2);border-radius:9px;color:var(--sub);font-size:12px}.research-subtitle{font-size:13px;color:var(--accent);margin:18px 0 8px}.evidence-row{padding:11px 13px;border-left:3px solid var(--accent);background:var(--card2);border-radius:8px;margin:7px 0;font-size:12px}.evidence-row p{margin:7px 0;line-height:1.5}.evidence-meta{display:flex;justify-content:space-between;gap:12px;color:var(--sub);font-size:10.5px}.pending-prob{color:var(--gold)}.research-input{margin-top:16px;border:1px solid var(--line);border-radius:10px;padding:11px 13px}.research-input summary{cursor:pointer;font-weight:700;color:var(--accent)}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}.form-grid label{display:flex;flex-direction:column;gap:5px;font-size:11px;color:var(--sub)}.form-grid .wide{grid-column:1/-1}.form-grid input,.form-grid textarea,.form-grid select{width:100%;box-sizing:border-box;background:var(--bg);color:var(--txt);border:1px solid var(--line);border-radius:7px;padding:9px;font:inherit}.research-submit{border:0;border-radius:8px;padding:9px 13px;background:var(--accent);color:white;font-weight:700;cursor:pointer}.form-note{font-size:10.5px;color:var(--sub);margin-left:10px}
 .health{border-radius:10px;padding:9px 12px;margin-top:10px;font-size:12px;background:rgba(10,158,110,.12);border:1px solid rgba(10,158,110,.35)}
 .health.degraded{background:rgba(246,195,77,.12);border-color:rgba(246,195,77,.45)}
-.tabbar{position:sticky;top:0;z-index:20;display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;margin:12px 0 2px;padding:7px;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:12px}.tabbar::-webkit-scrollbar{display:none}.tab-btn{flex:1 0 92px;min-height:40px;border:1px solid transparent;border-radius:9px;background:transparent;color:var(--sub);font-weight:700;font-size:12.5px;cursor:pointer;touch-action:manipulation;white-space:nowrap}.tab-btn[aria-selected="true"]{background:var(--accent);color:#fff;box-shadow:0 3px 12px rgba(76,141,255,.28)}.tab-btn:focus-visible{outline:2px solid var(--gold);outline-offset:2px}.tab-panel[hidden]{display:none}.tab-panel{animation:tab-in .16s ease-out}@keyframes tab-in{from{opacity:.3;transform:translateY(3px)}to{opacity:1;transform:none}}
+.tabbar{position:sticky;top:0;z-index:20;display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;margin:12px 0 2px;padding:7px;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:12px}.tabbar::-webkit-scrollbar{display:none}.tab-btn{flex:1 0 92px;min-height:40px;border:1px solid transparent;border-radius:9px;background:transparent;color:var(--sub);font-weight:700;font-size:12.5px;cursor:pointer;touch-action:manipulation;white-space:nowrap}.tab-icon{display:none}.tab-label{display:block}.tab-btn[aria-selected="true"]{background:var(--accent);color:#fff;box-shadow:0 3px 12px rgba(76,141,255,.28)}.tab-btn:focus-visible{outline:2px solid var(--gold);outline-offset:2px}.tab-panel[hidden]{display:none}.tab-panel{animation:tab-in .16s ease-out}@keyframes tab-in{from{opacity:.3;transform:translateY(3px)}to{opacity:1;transform:none}}
 a{color:var(--accent)}
 @media(max-width:640px){
  .grid4{grid-template-columns:repeat(2,1fr)}
@@ -1105,7 +1070,9 @@ a{color:var(--accent)}
  .alloc-change{justify-self:center;min-width:92px}
  .calendar-focus{grid-template-columns:1fr;gap:4px}
  .form-grid{grid-template-columns:1fr}.form-grid .wide{grid-column:auto}.evidence-meta{flex-direction:column;gap:5px}.form-note{display:block;margin:9px 0 0}
- .tabbar{margin-left:-2px;margin-right:-2px;padding:5px;gap:4px}.tab-btn{flex-basis:82px;min-height:44px;font-size:12px}
+ body{padding-bottom:calc(76px + env(safe-area-inset-bottom))}
+ .tabbar{position:fixed;top:auto;bottom:0;left:0;right:0;z-index:100;margin:0;padding:6px 8px calc(6px + env(safe-area-inset-bottom));gap:4px;overflow:visible;border-width:1px 0 0;border-radius:14px 14px 0 0;box-shadow:0 -5px 22px rgba(0,0,0,.22)}
+ .tab-btn{flex:1 1 25%;min-width:0;min-height:50px;padding:4px 2px;font-size:11px;line-height:1.15}.tab-icon{display:block;height:19px;font-size:16px;line-height:18px;margin-bottom:2px}
  .hdr-row{display:block}.top-controls{justify-content:space-between;margin-top:10px}.lang-toggle{min-height:38px}.theme-toggle{overflow-x:auto;max-width:calc(100% - 54px)}
 }
 @media print{.tabbar{display:none}.tab-panel[hidden]{display:block}.tab-panel{animation:none}}
@@ -1126,11 +1093,14 @@ var record={type:val('ri-type'),title:val('ri-title'),statement:val('ri-statemen
 var headings=[['记录类型',record.type],['标题',record.title],['核心内容',record.statement],['相关代码',record.symbols.join(', ')],['时间范围',record.horizon],['当前概率',record.probability===null?'':record.probability+'%'],['支持条件',record.supporting_conditions],['证伪条件',record.falsifiers],['替代解释',record.alternative_explanations],['来源链接',record.source_url],['公开状态',record.visibility],['输入渠道','dashboard']];
 var body=headings.map(function(x){return '### '+x[0]+'\\n'+(x[1]||'_No response_');}).join('\\n\\n')+'\\n\\n```research-entry\\n'+JSON.stringify(record,null,2)+'\\n```';
 var url='https://github.com/xueyan95/us-market-research-notes/issues/new?title='+encodeURIComponent('['+record.type+'] '+record.title)+'&body='+encodeURIComponent(body);window.open(url,'_blank','noopener');});})();
-(function(){var KEY='wb-dash-tab';var buttons=Array.from(document.querySelectorAll('.tab-btn'));var panels=Array.from(document.querySelectorAll('.tab-panel'));if(!buttons.length)return;
-function activate(name,focus){if(!document.getElementById('tab-'+name))name='decision';buttons.forEach(function(b){var on=b.dataset.tab===name;b.setAttribute('aria-selected',on?'true':'false');b.tabIndex=on?0:-1;if(on&&focus)b.focus();});panels.forEach(function(p){p.hidden=p.id!=='tab-'+name;});try{localStorage.setItem(KEY,name);history.replaceState(null,'','#tab-'+name);}catch(e){}}
-var initial=location.hash.indexOf('#tab-')===0?location.hash.slice(5):(localStorage.getItem(KEY)||'decision');activate(initial,false);
-buttons.forEach(function(b,i){b.addEventListener('click',function(){activate(b.dataset.tab,false);document.querySelector('.tabbar').scrollIntoView({block:'start'});});b.addEventListener('keydown',function(e){if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight')return;e.preventDefault();var n=(i+(e.key==='ArrowRight'?1:-1)+buttons.length)%buttons.length;activate(buttons[n].dataset.tab,true);});});
-window.addEventListener('hashchange',function(){if(location.hash.indexOf('#tab-')===0)activate(location.hash.slice(5),false);});})();
+(function(){var KEY='wb-dash-tab',POS_KEY='wb-dash-tab-scroll';var buttons=Array.from(document.querySelectorAll('.tab-btn'));var panels=Array.from(document.querySelectorAll('.tab-panel'));if(!buttons.length)return;
+var positions={},current=null;try{positions=JSON.parse(sessionStorage.getItem(POS_KEY)||'{}')||{};if('scrollRestoration' in history)history.scrollRestoration='manual';}catch(e){}
+function savePosition(){if(!current)return;positions[current]=Math.max(0,window.scrollY||0);try{sessionStorage.setItem(POS_KEY,JSON.stringify(positions));}catch(e){}}
+function scrollTarget(name){var stored=Number(positions[name]);if(Number.isFinite(stored))return Math.min(Math.max(0,stored),Math.max(0,document.documentElement.scrollHeight-window.innerHeight));var main=document.querySelector('main');return main?Math.max(0,main.offsetTop-8):0;}
+function activate(name,focus,reselectTop){if(!document.getElementById('tab-'+name))name='decision';if(current===name){if(reselectTop)window.scrollTo({top:0,behavior:'smooth'});return;}savePosition();current=name;buttons.forEach(function(b){var on=b.dataset.tab===name;b.setAttribute('aria-selected',on?'true':'false');b.tabIndex=on?0:-1;if(on&&focus)b.focus();});panels.forEach(function(p){p.hidden=p.id!=='tab-'+name;});try{localStorage.setItem(KEY,name);history.replaceState(null,'','#tab-'+name);}catch(e){}requestAnimationFrame(function(){window.scrollTo({top:scrollTarget(name),behavior:'auto'});});}
+var initial=location.hash.indexOf('#tab-')===0?location.hash.slice(5):(localStorage.getItem(KEY)||'decision');activate(initial,false,false);
+buttons.forEach(function(b,i){b.addEventListener('click',function(){activate(b.dataset.tab,false,true);});b.addEventListener('keydown',function(e){if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight')return;e.preventDefault();var n=(i+(e.key==='ArrowRight'?1:-1)+buttons.length)%buttons.length;activate(buttons[n].dataset.tab,true,false);});});
+window.addEventListener('pagehide',savePosition);window.addEventListener('beforeunload',savePosition);window.addEventListener('hashchange',function(){if(location.hash.indexOf('#tab-')===0)activate(location.hash.slice(5),false,false);});})();
 </script>"""
 
 LANG_JS_BODY = r"""<script>
@@ -1179,10 +1149,10 @@ body = f"""
 </header>
 
 <nav class="tabbar" role="tablist" aria-label="看板分区">
-  <button class="tab-btn" id="tab-btn-decision" role="tab" aria-controls="tab-decision" aria-selected="true" data-tab="decision">决策</button>
-  <button class="tab-btn" id="tab-btn-market" role="tab" aria-controls="tab-market" aria-selected="false" data-tab="market" tabindex="-1">市场</button>
-  <button class="tab-btn" id="tab-btn-portfolio" role="tab" aria-controls="tab-portfolio" aria-selected="false" data-tab="portfolio" tabindex="-1">持仓</button>
-  <button class="tab-btn" id="tab-btn-information" role="tab" aria-controls="tab-information" aria-selected="false" data-tab="information" tabindex="-1">信息</button>
+  <button class="tab-btn" id="tab-btn-decision" role="tab" aria-controls="tab-decision" aria-selected="true" data-tab="decision"><span class="tab-icon" aria-hidden="true">◆</span><span class="tab-label">决策</span></button>
+  <button class="tab-btn" id="tab-btn-market" role="tab" aria-controls="tab-market" aria-selected="false" data-tab="market" tabindex="-1"><span class="tab-icon" aria-hidden="true">≋</span><span class="tab-label">市场</span></button>
+  <button class="tab-btn" id="tab-btn-portfolio" role="tab" aria-controls="tab-portfolio" aria-selected="false" data-tab="portfolio" tabindex="-1"><span class="tab-icon" aria-hidden="true">▥</span><span class="tab-label">持仓</span></button>
+  <button class="tab-btn" id="tab-btn-information" role="tab" aria-controls="tab-information" aria-selected="false" data-tab="information" tabindex="-1"><span class="tab-icon" aria-hidden="true">●</span><span class="tab-label">信息</span></button>
 </nav>
 
 <main>
@@ -1243,16 +1213,8 @@ body = f"""
   </table>
 </div>
 
-</section>
-<section class="tab-panel" id="tab-portfolio" role="tabpanel" aria-labelledby="tab-btn-portfolio" hidden>
 <div class="card">
-  <h2>⑤ 持仓与观察</h2>
-  <h2 style="font-size:13.5px">核心持仓 · 蝴蝶图（{len(HOLDINGS)}只 · 最近常规盘 {D_LATEST}）</h2>
-  {butterfly()}
-  {hold_summary}
-  <h2 style="font-size:13.5px;margin-top:18px">Robinhood 组合面板 <span class="tag">{'股票盘前价优先；期权最近常规报价' if REPORT_SLOT == 'premarket' else '常规盘收盘估值'}</span></h2>
-  {private_panel}
-  <h2 style="font-size:13.5px;margin-top:18px">观察分组 · AI 五层蛋糕（黄仁勋框架 · 自上而下）</h2>
+  <h2>AI 五层蛋糕 <span class="tag">黄仁勋框架 · 自上而下</span></h2>
   <div class="sec-desc">标「仓」者为当前持仓；杠杆 ETF 按跟踪标的继承主题分类，并标注每日杠杆倍数；数据为 {D_LATEST} 收盘涨跌幅。</div>
   {layer(*LAYERS[0])}
   {layer(*LAYERS[1])}
@@ -1263,6 +1225,17 @@ body = f"""
   <h2 style="font-size:13.5px;margin-top:20px">趋势热力矩阵 <span class="tag">1日 / 1周 / 1月 / 3月</span></h2>
   <div class="sec-desc">行=个股（按五层分组），列=多周期涨跌幅；背景色块深浅=幅度，红=涨、绿=跌。数据：westockdata 70 日K线，截至 {D_LATEST}。</div>
   {heat_matrix()}
+</div>
+
+</section>
+<section class="tab-panel" id="tab-portfolio" role="tabpanel" aria-labelledby="tab-btn-portfolio" hidden>
+<div class="card">
+  <h2>⑤ 持仓与观察</h2>
+  <h2 style="font-size:13.5px">核心持仓 · 蝴蝶图（{len(HOLDINGS)}只 · 最近常规盘 {D_LATEST}）</h2>
+  {butterfly()}
+  {hold_summary}
+  <h2 style="font-size:13.5px;margin-top:18px">Robinhood 组合面板 <span class="tag">{'股票盘前价优先；期权最近常规报价' if REPORT_SLOT == 'premarket' else '常规盘收盘估值'}</span></h2>
+  {private_panel}
 </div>
 
 </section>
@@ -1332,11 +1305,6 @@ body = f"""
   </table>
 </div>
 
-<div class="card">
-  <h2>⑨ 标的短期期权环境 <span class="tag">ATM IV / 全链 P-C · 非持仓合约风险</span></h2>
-  <div class="sec-desc">隐含波动率 (IV) 反映市场对后续波动的预期；P/C ratio（用 OI 计算）> 1 偏看跌，&lt; 0.7 偏看涨。来源：yfinance option_chain，取 14-45 DTE 到期日。失败/无数据项显示 —。</div>
-  {opt_html or '<div class="note">暂无期权数据</div>'}
-</div>
 </section>
 </main>
 

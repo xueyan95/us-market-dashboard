@@ -854,9 +854,6 @@ def main():
         premarket["reference_close_date"] = premarket_reference_date
         print(f"  盘前覆盖: {premarket['available_count']}/{premarket['requested']}")
 
-    # 4) 持仓期权 IV / P-C ratio（期权标的由配置文件单独声明）
-    print("拉取持仓期权数据...")
-    options_data = fetch_options(OPTION_UNDERLYINGS)
     valuation_quotes = {symbol: dict(value) for symbol, value in quotes.items()}
     if REPORT_SLOT == "premarket":
         for symbol, item in premarket.get("quotes", {}).items():
@@ -951,7 +948,6 @@ def main():
         "private_portfolio_snapshot": private_snapshot,
         "earnings": earnings,
         "yf": yf_data,
-        "options": options_data,
         "adv_dec": adv_dec,
         "news": news_data,
         "news_delta": news_delta,
