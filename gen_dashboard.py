@@ -167,9 +167,10 @@ def butterfly():
         dirn = "right" if (c or 0) >= 0 else "left"
         style = f"width:{w:.2f}%;background:{col};{'left:50%' if dirn=='right' else 'right:50%'}"
         rows.append(
-            f'<div class="row"><b>{HOLD_NAME[s]}</b>'
-            f'<div class="barwrap"><div class="zero"></div><div class="bar" style="{style}"></div></div>'
-            f'<span style="text-align:right;color:{col}">{fmt_price(s)} {chg_str(c)}</span></div>')
+            f'<div class="row"><div class="barwrap"><div class="zero"></div>'
+            f'<div class="bar" style="{style}"></div>'
+            f'<div class="butter-mid"><b>{HOLD_NAME[s]}</b><span style="color:{col}">{chg_str(c)}</span></div></div>'
+            f'<span class="butter-price">{fmt_price(s)}</span></div>')
     return ("<div class='butter'>" + "".join(rows) + "</div>"
             f"<div class='note'>蝴蝶图：向右=涨(红)、向左=跌(绿)，中线 0%；横轴满刻度 = 当日持仓最大 |涨跌幅| = ±{maxabs:.2f}%（自适应）。基准 {D_LATEST} vs {D_PREV}。</div>")
 
@@ -542,6 +543,23 @@ fede_tnx_str = f"{fw.get('tnx_chg_pct', '—')}%" if fw.get('tnx_chg_pct') not i
 hold_alert = A.get("holdings_alert", "")
 tomorrow = A.get("tomorrow_focus", "")
 
+# 公司与产品事件来自 AI 对新闻输入的结构化提取；ai_analysis.py 会用原始 URL 再校验。
+upcoming_event_rows = ""
+for event in A.get("upcoming_events", [])[:8]:
+    event_date = esc(str(event.get("date", "TBD")))
+    event_time = esc(str(event.get("time", "TBD")))
+    symbol = esc(str(event.get("symbol", "")))
+    title = esc(str(event.get("event", "")))
+    source = esc(str(event.get("source", "")))
+    url = esc(str(event.get("evidence_url", "")))
+    event_link = f'<a href="{url}" target="_blank" rel="noopener">{title}</a>' if url else title
+    upcoming_event_rows += (
+        f'<tr><td><b>{event_date}</b><br><span class="date-sm">{event_time}</span></td>'
+        f'<td>{event_link}</td><td><b>{symbol or "—"}</b></td><td class="muted">{source or "—"}</td></tr>'
+    )
+if not upcoming_event_rows:
+    upcoming_event_rows = '<tr><td colspan="4" class="muted" style="text-align:center;padding:12px">未来 7 天未发现有原始新闻佐证的公司/产品事件</td></tr>'
+
 
 def premarket_panel():
     if REPORT_SLOT != "premarket":
@@ -606,26 +624,77 @@ def private_portfolio_panel():
 
     account = PRIVATE_SNAPSHOT.get("account", {})
     valuation = PRIVATE_SNAPSHOT.get("valuation", {})
-    total_raw = valuation.get("total_value")
+    close_valuation = PRIVATE_SNAPSHOT.get("last_close_valuation", valuation)
+    total_raw = close_valuation.get("total_value")
     total = float(total_raw) if total_raw is not None else None
     cash = float(account.get("cash") or 0)
-    options_value = float(valuation.get("options_value") or 0)
-    equity_value = float(valuation.get("equity_value") or 0)
-    currency = esc(PRIVATE_SNAPSHOT.get("currency", "USD"))
+    options_value = float(close_valuation.get("options_value") or 0)
+    equity_value = float(close_valuation.get("equity_value") or 0)
     def money(value):
-        return f"{currency} {value:,.2f}"
-    def pct(value):
-        return f"{value / total * 100:.1f}%" if total else "—"
+        return f"${value:,.2f}"
     def maybe_money(value):
         return money(float(value)) if value is not None else "—"
     def maybe_pct(value):
         return f"{float(value):+.1f}%" if value is not None else "—"
 
+    def pnl_visual(amount, percent):
+        if amount is None or percent is None:
+            return '<span class="muted">—</span>'
+        amount = float(amount)
+        percent = float(percent)
+        cls = "gain" if percent > 0 else ("loss" if percent < 0 else "flat")
+        width = min(abs(percent), 100)
+        return (f'<div class="pnl-vis"><div class="pnl-track"><span class="pnl-fill {cls}" '
+                f'style="width:{width:.1f}%"></span></div>'
+                f'<span class="pnl-value {cls}">{money(amount)} · {percent:+.1f}%</span></div>')
+
+    broker_total = account.get("broker_total_value")
+    broker_total = float(broker_total) if broker_total is not None else total
+    def account_value(key, fallback):
+        value = account.get(key)
+        return float(value) if value is not None else fallback
+    latest_assets = [
+        ("现金", account_value("cash", cash), "cash"),
+        ("股票", account_value("equity_value", equity_value), "equity"),
+        ("期权", account_value("options_value", options_value), "option"),
+    ]
+    latest_known = sum(value for _, value, _ in latest_assets)
+    if broker_total is not None and broker_total - latest_known > .01:
+        latest_assets.append(("其他", broker_total - latest_known, "other"))
+    close_assets = [("现金", cash, "cash"), ("股票", equity_value, "equity"),
+                    ("期权", options_value, "option")]
+
+    def allocation_bar(label, assets, bar_total):
+        if not bar_total:
+            return f'<div class="alloc-row"><div class="alloc-label"><b>{label}</b><span>—</span></div></div>'
+        segments = "".join(
+            f'<span class="alloc-seg {kind}" style="width:{max(value / bar_total * 100, 0):.2f}%" '
+            f'title="{name} {money(value)} · {value / bar_total * 100:.1f}%"></span>'
+            for name, value, kind in assets if value > 0
+        )
+        legend = "".join(
+            f'<span><i class="alloc-dot {kind}"></i>{name} <b>{money(value)}</b> · {value / bar_total * 100:.1f}%</span>'
+            for name, value, kind in assets
+        )
+        return (f'<div class="alloc-row"><div class="alloc-label"><b>{label}</b><span>{money(bar_total)}</span></div>'
+                f'<div class="alloc-bar">{segments}</div><div class="alloc-legend">{legend}</div></div>')
+
+    account_change = ((broker_total - total) / total * 100
+                      if broker_total is not None and total else None)
+    change_class = "gain" if (account_change or 0) > 0 else ("loss" if (account_change or 0) < 0 else "flat")
+    account_comparison = (
+        '<div class="alloc-compare">'
+        + allocation_bar("Last close", close_assets, total)
+        + f'<div class="alloc-change {change_class}"><span>Change</span><b>{maybe_pct(account_change)}</b></div>'
+        + allocation_bar("最新资产", latest_assets, broker_total)
+        + '</div>'
+    )
+
     equity_rows = "".join(
         f'<tr><td><b>{esc(item.get("symbol", "—"))}</b></td><td>{float(item.get("quantity") or 0):g}</td>'
         f'<td>{money(float(item.get("average_cost") or 0))}</td><td>{maybe_money(item.get("current_price"))}</td>'
         f'<td>{maybe_money(item.get("market_value"))}</td><td>{maybe_pct(item.get("weight_pct"))}</td>'
-        f'<td>{maybe_money(item.get("unrealized_pnl"))} · {maybe_pct(item.get("unrealized_pnl_pct"))}</td></tr>'
+        f'<td>{pnl_visual(item.get("unrealized_pnl"), item.get("unrealized_pnl_pct"))}</td></tr>'
         for item in PRIVATE_SNAPSHOT.get("equities", [])
     ) or '<tr><td colspan="6" class="muted">暂无股票仓位</td></tr>'
     def option_row(item):
@@ -639,15 +708,11 @@ def private_portfolio_panel():
             f'<td>{esc(item.get("dte", "—"))}</td><td>{maybe_pct(item.get("spread_pct"))}</td>'
             f'<td>{maybe_pct(iv)}</td><td>{greek}</td>'
             f'<td>{maybe_money(item.get("market_value"))} · {maybe_pct(item.get("weight_pct"))}</td>'
-            f'<td>{maybe_money(item.get("unrealized_pnl"))} · {maybe_pct(item.get("unrealized_pnl_pct"))}</td></tr>')
+            f'<td>{pnl_visual(item.get("unrealized_pnl"), item.get("unrealized_pnl_pct"))}</td></tr>')
     option_rows = "".join(option_row(item) for item in PRIVATE_SNAPSHOT.get("options", [])) \
         or '<tr><td colspan="11" class="muted">暂无期权仓位</td></tr>'
-    return f'''<div class="kv">
-      <div class="it"><div class="k">账户净值</div><div class="v">{maybe_money(total)}</div></div>
-      <div class="it"><div class="k">现金 / 净值</div><div class="v">{money(cash)} · {pct(cash)}</div></div>
-      <div class="it"><div class="k">股票 / 净值</div><div class="v">{money(equity_value)} · {pct(equity_value)}</div></div>
-      <div class="it"><div class="k">期权 / 净值</div><div class="v">{money(options_value)} · {pct(options_value)}</div></div>
-    </div><div class="note">持仓更新时间：{esc(PRIVATE_SNAPSHOT.get("as_of", "—"))}；价格计算时间：{esc(valuation.get("as_of", "—"))}。价格由 GitHub Actions 每次运行重新拉取；若任一合约缺少报价，账户净值显示为 —；公开展示由你授权。</div>
+    return f'''{account_comparison}
+    <div class="note">Last close 使用本次行情流程重新估值；最新资产来自 Robinhood 快照（{esc(PRIVATE_SNAPSHOT.get("as_of", "—"))}）。价格计算时间：{esc(valuation.get("as_of", "—"))}。若任一合约缺少报价，账户净值显示为 —；公开展示由你授权。</div>
     <h3 style="margin-top:16px;font-size:13.5px;color:var(--accent)">股票明细</h3>
     <div class="table-wrap"><table><tr><th>代码</th><th>数量</th><th>平均成本</th><th>现价</th><th>市值</th><th>权重</th><th>浮盈亏</th></tr>{equity_rows}</table></div>
     <h3 style="margin-top:16px;font-size:13.5px;color:var(--accent)">期权明细</h3>
@@ -793,10 +858,19 @@ td .rsi-lbl{color:inherit}
 .q4 div{margin:5px 0}
 .q4 b{color:var(--txt)}
 .butter{position:relative;padding:8px 0}
-.butter .row{display:grid;grid-template-columns:64px 1fr 110px;align-items:center;gap:8px;margin:9px 0;font-size:12px}
-.butter .barwrap{position:relative;height:16px}
-.butter .bar{position:absolute;top:0;height:16px;border-radius:4px}
+.butter .row{display:grid;grid-template-columns:minmax(0,1fr) 76px;align-items:center;gap:10px;margin:8px 0;font-size:12px}
+.butter .barwrap{position:relative;height:30px;background:var(--card2);border-radius:7px;overflow:hidden}
+.butter .bar{position:absolute;top:5px;height:20px;border-radius:5px;opacity:.88}
 .butter .zero{position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--line)}
+.butter-mid{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2;display:flex;align-items:center;gap:7px;white-space:nowrap;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:2px 8px;font-variant-numeric:tabular-nums}
+.butter-mid b{font-size:12px;letter-spacing:.2px}.butter-mid span{font-weight:800}
+.butter-price{text-align:right;color:var(--sub);font-variant-numeric:tabular-nums}
+.alloc-compare{display:grid;grid-template-columns:minmax(0,1fr) 84px minmax(0,1fr);gap:12px;align-items:center;padding:14px;background:var(--card2);border-radius:12px;border:1px solid var(--line)}
+.alloc-label{display:flex;justify-content:space-between;gap:10px;margin-bottom:8px;font-size:12px}.alloc-label span{font-size:15px;font-weight:800;font-variant-numeric:tabular-nums}
+.alloc-bar{display:flex;height:24px;overflow:hidden;border-radius:7px;background:var(--line)}.alloc-seg{height:100%;min-width:2px}.alloc-seg.cash,.alloc-dot.cash{background:var(--gold)}.alloc-seg.equity,.alloc-dot.equity{background:var(--accent)}.alloc-seg.option,.alloc-dot.option{background:#a56eff}.alloc-seg.other,.alloc-dot.other{background:#8a8f98}
+.alloc-legend{display:flex;flex-wrap:wrap;gap:5px 12px;margin-top:8px;font-size:10.5px;color:var(--sub)}.alloc-legend b{color:var(--txt);font-variant-numeric:tabular-nums}.alloc-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:4px}
+.alloc-change{text-align:center;padding:8px 5px;border-radius:9px;background:var(--card);border:1px solid var(--line)}.alloc-change span{display:block;font-size:10px;color:var(--sub)}.alloc-change b{font-size:16px;font-variant-numeric:tabular-nums}.gain{color:var(--red)}.loss{color:var(--green)}.flat{color:var(--sub)}
+.pnl-vis{min-width:155px}.pnl-track{height:6px;background:var(--line);border-radius:4px;overflow:hidden;margin-bottom:4px}.pnl-fill{display:block;height:100%;border-radius:4px}.pnl-fill.gain{background:var(--red)}.pnl-fill.loss{background:var(--green)}.pnl-fill.flat{background:var(--sub)}.pnl-value{font-weight:700;font-variant-numeric:tabular-nums}
 .layer{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:8px 0;background:var(--card2)}
 .layer .lh{font-weight:700;font-size:12.5px;margin-bottom:4px}
 .layer .lt{color:var(--sub);font-size:11.5px;font-weight:400}
@@ -831,7 +905,10 @@ a{color:var(--accent)}
  .grid2{grid-template-columns:1fr}
  .kv{grid-template-columns:repeat(2,1fr)}
  th,td{font-size:11.5px;padding:6px 5px}
- .butter .row{grid-template-columns:54px 1fr 90px}
+ .butter .row{grid-template-columns:minmax(0,1fr) 62px}
+ .butter-mid{gap:4px;padding:2px 5px}
+ .alloc-compare{grid-template-columns:1fr;gap:9px}
+ .alloc-change{justify-self:center;min-width:92px}
 }
 """
 
@@ -988,11 +1065,13 @@ body = f"""
 </div>
 
 <div class="card">
-  <h2>⑧ 事件日历 <span class="tag">宏观 + AI 五层蛋糕持仓/关注池财报</span></h2>
+  <h2>⑧ 事件日历 <span class="tag">公司/产品 + 宏观 + 财报</span></h2>
   <div class="sec-desc">
-    未来 7 天高重要性宏观数据（来自 westock 经济日历，权重≥3 事件，含前值/预期/实际）。
-    下方为持仓/关注池（AI 五层蛋糕全部 {len(FOCUS)} 只标的）近 6 日财报（Nasdaq keyless 接口）。
+    公司/产品事件由 AI 从本次新闻输入提取，并通过原始 URL 与媒体源校验；宏观数据来自 westock 经济日历（权重≥3）。
   </div>
+  <h3 style="margin-top:4px;font-size:13.5px;color:var(--accent)">🏢 公司 / 产品事件</h3>
+  <table><tr><th>日期/时间</th><th>事件</th><th>代码</th><th>来源</th></tr>{upcoming_event_rows}</table>
+  <h3 style="margin-top:18px;font-size:13.5px;color:var(--accent)">🌐 高重要性宏观事件</h3>
   <table>
     <tr><th>距今</th><th>事件</th><th>前值</th><th>预期</th><th>实际</th></tr>
     {econ_rows}

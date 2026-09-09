@@ -158,6 +158,16 @@ def build_message():
         parts.append("")
         parts.append(f"【近期关注】{esc(a['tomorrow_focus'])}")
 
+    upcoming_events = a.get("upcoming_events", []) or []
+    if upcoming_events:
+        parts.append("")
+        parts.append("【公司/产品事件】")
+        for event in upcoming_events[:8]:
+            when = f"{event.get('date', '—')} {event.get('time', 'TBD')}"
+            symbol = str(event.get("symbol", "")).strip()
+            label = f"{symbol} · " if symbol else ""
+            parts.append(f"  · <b>{esc(when)}</b> {esc(label + str(event.get('event', '')))}")
+
     parts.extend([
         "",
         "完整看板见 GitHub Actions 产物 <code>index.html</code>",

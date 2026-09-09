@@ -495,25 +495,30 @@ def fetch_position_option_quote(position):
         return None
 
 
-def enrich_portfolio_snapshot(snapshot, quotes):
+def enrich_portfolio_snapshot(snapshot, quotes, close_quotes=None):
     """Price snapshot positions at workflow runtime and calculate P&L."""
     if not snapshot.get("available"):
         return snapshot
     result = dict(snapshot)
     equities = []
     equity_value = 0.0
+    close_equity_value = 0.0
     equity_complete = True
+    close_equity_complete = True
     for raw in snapshot.get("equities", []):
         item = dict(raw)
         symbol = str(item.get("symbol", "")).upper()
         quantity = _num(item.get("quantity")) or 0.0
         average_cost = _num(item.get("average_cost"))
         current_price = _num((quotes.get(f"us{symbol}") or {}).get("last"))
+        close_price = _num(((close_quotes or quotes).get(f"us{symbol}") or {}).get("last"))
         market_value = current_price * quantity if current_price is not None else None
+        close_market_value = close_price * quantity if close_price is not None else None
         cost_basis = average_cost * quantity if average_cost is not None else None
         pnl = market_value - cost_basis if market_value is not None and cost_basis is not None else None
         pnl_pct = pnl / cost_basis * 100 if pnl is not None and cost_basis else None
-        item.update({"current_price": current_price, "market_value": market_value,
+        item.update({"current_price": current_price, "last_close_price": close_price,
+                     "market_value": market_value, "last_close_market_value": close_market_value,
                      "cost_basis": cost_basis, "unrealized_pnl": pnl,
                      "unrealized_pnl_pct": pnl_pct, "price_source": "westockdata daily close"})
         equities.append(item)
@@ -521,6 +526,10 @@ def enrich_portfolio_snapshot(snapshot, quotes):
             equity_complete = False
         else:
             equity_value += market_value
+        if close_market_value is not None:
+            close_equity_value += close_market_value
+        else:
+            close_equity_complete = False
 
     options = []
     options_value = 0.0
@@ -577,6 +586,12 @@ def enrich_portfolio_snapshot(snapshot, quotes):
         "equity_complete": equity_complete,
         "options_complete": options_complete,
         "price_sources": ["westockdata daily close", "yfinance option chain"],
+    }
+    result["last_close_valuation"] = {
+        "equity_value": round(close_equity_value, 2),
+        "options_value": round(options_value, 2),
+        "total_value": round(cash + close_equity_value + options_value, 2)
+        if close_equity_complete and options_complete else None,
     }
     total = result["valuation"]["total_value"]
     if total:
@@ -849,7 +864,7 @@ def main():
             if key in valuation_quotes:
                 valuation_quotes[key]["last"] = item.get("price")
                 valuation_quotes[key]["chg_pct"] = item.get("change_pct")
-    private_snapshot = enrich_portfolio_snapshot(private_snapshot, valuation_quotes)
+    private_snapshot = enrich_portfolio_snapshot(private_snapshot, valuation_quotes, quotes)
 
     # 5) NYSE / NASDAQ 涨跌家数（市场宽度）
     print("拉取 NYSE/NASDAQ 涨跌家数...")

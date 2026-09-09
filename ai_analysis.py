@@ -24,7 +24,10 @@ import time
 import urllib.error
 import urllib.request
 
-import yfinance as yf
+try:
+    import yfinance as yf
+except ImportError:  # 允许只运行不需要联网的 schema/grounding 单元测试
+    yf = None
 from portfolio import holding_symbols, leveraged_etfs, load_effective_portfolio
 
 API_KEY = os.environ.get("SILICONFLOW_API_KEY", "")
@@ -74,6 +77,8 @@ def load_news(m=None):
 
 def fetch_yf_news():
     """yfinance 兜底：拉主流指数/股票最近新闻，去重后取前 12 条。"""
+    if yf is None:
+        return []
     items, seen = [], set()
     for sym in NEWS_TICKERS:
         try:
@@ -253,6 +258,9 @@ def build_prompt(m, news, news_source):
   "news_cards": [
     {{"category": "宏观·美联储", "title": "必须忠实于输入标题", "key_data": "输入中确实出现的数字；没有则留空", "impact": "明确标注为推断", "source": "输入中的媒体源", "evidence_url": "输入中的原始URL", "evidence_type": "事实或推断"}}
   ],
+  "upcoming_events": [
+    {{"date": "YYYY-MM-DD", "time": "HH:MM 时区或 TBD", "symbol": "AAPL", "event": "公司或产品事件", "evidence_title": "必须逐字使用输入新闻标题", "source": "输入中的媒体源", "evidence_url": "输入中的原始URL"}}
+  ],
   "news": [
     {{"title": "原始新闻标题（挑最重要 5-8 条）", "detail": "一句话要点", "source": "媒体源或 ticker"}}
   ],
@@ -273,6 +281,8 @@ def build_prompt(m, news, news_source):
   ·【地缘/政治】（中东、俄乌、中美芯片战）
   ·【国内/中概】（A 股、H 股、中概回港）
   不得为了凑类别或数字创造事件、来源、资金流或因果关系
+- upcoming_events 只提取 {today_iso} 起未来 7 天内、新闻标题或摘要明确给出日期的公司产品发布、开发者大会、投资者日等事件；最多 8 条
+- upcoming_events 的 evidence_title/source/evidence_url 必须逐字来自同一条输入新闻；日期不明确、已经发生或没有原始 URL 时不要收录
 - news 给 5-8 条精选（跨主题）
 - 事实只能来自所提供的行情、标题、摘要和 URL；观点必须标为“推断”
 - 已经公布的事件不得写成明日关注；不能从股价上涨反推财报超预期
@@ -369,6 +379,23 @@ def validate_grounding(analysis, news, market=None):
             card["evidence_type"] = "标题事实 + AI推断"
             cards.append(card)
     analysis["news_cards"] = cards
+    today = datetime.date.today()
+    cutoff = today + datetime.timedelta(days=7)
+    events = []
+    for event in analysis.get("upcoming_events", [])[:8]:
+        url = str(event.get("evidence_url", "")).strip()
+        source = str(event.get("source", "")).strip()
+        evidence_title = str(event.get("evidence_title", "")).strip()
+        original = source_by_url.get(url)
+        try:
+            event_date = datetime.date.fromisoformat(str(event.get("date", "")))
+        except ValueError:
+            continue
+        if (original and source == str(original.get("source", "")).strip()
+                and evidence_title == str(original.get("title", "")).strip()
+                and today <= event_date <= cutoff):
+            events.append(event)
+    analysis["upcoming_events"] = events
     allowed_pairs = {(str(item.get("title", "")).strip(), str(item.get("source", "")).strip())
                      for item in news}
     grounded_themes = []
@@ -380,7 +407,8 @@ def validate_grounding(analysis, news, market=None):
             grounded_themes.append(theme)
     analysis["news_themes"] = grounded_themes
     analysis["grounding"] = {"input_news": len(news), "verified_cards": len(cards),
-                              "verified_themes": len(grounded_themes)}
+                              "verified_themes": len(grounded_themes),
+                              "verified_upcoming_events": len(events)}
     if REPORT_SLOT == "premarket":
         supplied = ((market or {}).get("premarket", {}).get("quotes", {}))
         grounded_alerts = []
@@ -411,7 +439,7 @@ def main():
             "fedwatch": {"stance": "—", "stance_reason": "", "next_meeting": "—",
                          "current_range": "—", "curve_5s10s_bp": "—",
                          "latest_cpi": "—", "latest_nfp": "—", "note": "未配置"},
-            "news_themes": [], "news_cards": [], "news": [],
+            "news_themes": [], "news_cards": [], "upcoming_events": [], "news": [],
             "holdings_alert": "", "tomorrow_focus": "",
         }
         here = os.path.dirname(os.path.abspath(__file__))
@@ -438,7 +466,7 @@ def main():
             "fedwatch": {"stance": "—", "stance_reason": "", "next_meeting": "—",
                          "current_range": "—", "curve_5s10s_bp": "—",
                          "latest_cpi": "—", "latest_nfp": "—", "note": ""},
-            "news_themes": [], "news_cards": [], "news": [],
+            "news_themes": [], "news_cards": [], "upcoming_events": [], "news": [],
             "holdings_alert": "", "tomorrow_focus": "",
             "error": str(e),
         }

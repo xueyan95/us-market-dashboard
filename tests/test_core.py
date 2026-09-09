@@ -1,10 +1,13 @@
 import json
+import datetime
 import unittest
 from pathlib import Path
 
-from fetch_data import build_news_delta, completed_trading_dates, compute_premarket_change, option_greeks
+from fetch_data import (build_news_delta, completed_trading_dates, compute_premarket_change,
+                        enrich_portfolio_snapshot, option_greeks)
 from portfolio import inherit_leveraged_layer_categories, leveraged_etfs, load_portfolio_config
 from should_notify import classify_slot
+from ai_analysis import validate_grounding
 
 
 class CoreTests(unittest.TestCase):
@@ -39,6 +42,29 @@ class CoreTests(unittest.TestCase):
     def test_option_delta_is_bounded(self):
         result = option_greeks(100, 100, 365, .30, "call")
         self.assertTrue(0 < result["delta_est"] < 1)
+
+    def test_portfolio_keeps_last_close_separate_from_latest_price(self):
+        snapshot = {"available": True, "account": {"cash": 50},
+                    "equities": [{"symbol": "TEST", "quantity": 1, "average_cost": 90}],
+                    "options": []}
+        enriched = enrich_portfolio_snapshot(
+            snapshot, {"usTEST": {"last": 105}}, {"usTEST": {"last": 100}})
+        self.assertEqual(enriched["valuation"]["total_value"], 155)
+        self.assertEqual(enriched["last_close_valuation"]["total_value"], 150)
+
+    def test_company_event_requires_matching_news_evidence(self):
+        title = "Apple announces product event for today"
+        news = [{"title": title, "source": "Example", "link": "https://example.com/apple"}]
+        analysis = {"news_cards": [], "news_themes": [], "upcoming_events": [
+            {"date": datetime.date.today().isoformat(), "time": "10:00 PT", "symbol": "AAPL",
+             "event": "Apple product event", "evidence_title": title,
+             "source": "Example", "evidence_url": "https://example.com/apple"},
+            {"date": datetime.date.today().isoformat(), "time": "TBD", "symbol": "FAKE",
+             "event": "Invented event", "evidence_title": "Missing",
+             "source": "Example", "evidence_url": "https://example.com/missing"},
+        ]}
+        grounded = validate_grounding(analysis, news)
+        self.assertEqual([x["symbol"] for x in grounded["upcoming_events"]], ["AAPL"])
 
     def test_config_is_valid(self):
         config = load_portfolio_config(Path(__file__).parents[1] / "portfolio_config.json")
