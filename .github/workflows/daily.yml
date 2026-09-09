@@ -2,14 +2,14 @@ name: Daily US Market Dashboard
 
 on:
   schedule:
-    # 3 班轮：收盘复盘（08:00 CST）+ 盘前速览（21:00 夏令时 / 22:00 冬令时）
+    # 3 班轮：收盘复盘（07:45 CST）+ 盘前速览（20:45 夏令时 / 21:45 冬令时）
     # DST 处理由 should_notify.py 在 Python 层动态判定
-    # 08:00 CST = 00:00 UTC — 收盘复盘（每天）
-    - cron: '0 0 * * *'
-    # 21:00 CST = 13:00 UTC — 盘前（夏令时 3月-11月初）
-    - cron: '0 13 * * *'
-    # 22:00 CST = 14:00 UTC — 盘前（冬令时 11月初-3月初，09:00 ET）
-    - cron: '0 14 * * *'
+    # 07:45 CST = 23:45 UTC — 收盘复盘（每天，避开整点调度高峰）
+    - cron: '45 23 * * *'
+    # 20:45 CST = 12:45 UTC — 盘前（夏令时 3月-11月初）
+    - cron: '45 12 * * *'
+    # 21:45 CST = 13:45 UTC — 盘前（冬令时 11月初-3月初，08:45 ET）
+    - cron: '45 13 * * *'
   workflow_dispatch:
     inputs:
       report_slot:
