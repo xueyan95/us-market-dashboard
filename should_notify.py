@@ -5,9 +5,9 @@ should_notify.py — 决定 GitHub Actions 这一轮跑下来要不要推 Telegr
 
 输入：
   - cron UTC 时间（由 workflow 用 ${{ github.event.schedule }} 传入 → env SLOT_UTC）
-    '0 0'   收盘复盘
-    '0 13'  盘前（夏令时 21:00 CST）
-    '0 14'  盘前（冬令时 22:00 CST）
+    '45 23'  收盘复盘（07:45 CST）
+    '45 12'  盘前（夏令时 20:45 CST）
+    '45 13'  盘前（冬令时 21:45 CST）
   - 也支持手动传参 --cron='HH MM'；默认从 env SLOT_UTC 读
 
 输出到 stdout 一行 JSON：
@@ -82,16 +82,16 @@ def last_trading_day_via_kline():
 def classify_slot(cron_hh, cron_mm, dst):
     """根据 cron 时间和 DST 判定 slot 类型。
 
-    '0 0'        → postmarket（收盘复盘，固定 08:00 CST，不受 DST 影响）
-    '0 13' (DST)  → premarket（盘前 21:00 CST，夏令时有效）
-    '0 14' (noDST) → premarket（盘前 22:00 CST / 09:00 ET，冬令时有效）
+    '45 23' (minute hour) → postmarket（收盘复盘，固定 07:45 CST）
+    '45 12' (DST)         → premarket（盘前 20:45 CST，夏令时有效）
+    '45 13' (noDST)       → premarket（盘前 21:45 CST / 08:45 ET，冬令时有效）
     其他组合 → skip
     """
-    if cron_hh == 0 and cron_mm == 0:
+    if cron_hh == 23 and cron_mm == 45:
         return "postmarket"
-    if dst and cron_hh == 13 and cron_mm == 0:
+    if dst and cron_hh == 12 and cron_mm == 45:
         return "premarket"
-    if (not dst) and cron_hh == 14 and cron_mm == 0:
+    if (not dst) and cron_hh == 13 and cron_mm == 45:
         return "premarket"
     return "skip"
 
@@ -103,14 +103,14 @@ def main():
     cron_hh, cron_mm = 0, 0
     if slot_env:
         try:
-            cron_hh, cron_mm = [int(x) for x in slot_env.strip().split()[:2]]
+            cron_mm, cron_hh = [int(x) for x in slot_env.strip().split()[:2]]
         except Exception:
             pass
     else:
         for arg in sys.argv[1:]:
             if arg.startswith("--cron="):
                 try:
-                    cron_hh, cron_mm = [int(x) for x in arg.split("=", 1)[1].split()[:2]]
+                    cron_mm, cron_hh = [int(x) for x in arg.split("=", 1)[1].split()[:2]]
                 except Exception:
                     pass
 
