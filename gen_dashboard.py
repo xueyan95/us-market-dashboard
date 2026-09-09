@@ -162,17 +162,18 @@ def butterfly():
     scale = max(maxabs, 0.5)
     for s in HOLDINGS:
         p, c = get(s)
-        w = min(abs(c or 0) / scale * 50.0, 50.0)
+        w = min(abs(c or 0) / scale * 100.0, 100.0)
         col = color(c)
-        dirn = "right" if (c or 0) >= 0 else "left"
-        style = f"width:{w:.2f}%;background:{col};{'left:50%' if dirn=='right' else 'right:50%'}"
+        left_bar = f'<div class="bar" style="width:{w:.2f}%;background:{col}"></div>' if (c or 0) < 0 else ""
+        right_bar = f'<div class="bar" style="width:{w:.2f}%;background:{col}"></div>' if (c or 0) > 0 else ""
         rows.append(
-            f'<div class="row"><div class="barwrap"><div class="zero"></div>'
-            f'<div class="bar" style="{style}"></div>'
-            f'<div class="butter-mid"><b>{HOLD_NAME[s]}</b><span style="color:{col}">{chg_str(c)}</span></div></div>'
-            f'<span class="butter-price">{fmt_price(s)}</span></div>')
+            f'<div class="row"><div class="barwrap">'
+            f'<div class="butter-wing left-wing">{left_bar}</div>'
+            f'<div class="butter-mid"><div><b>{HOLD_NAME[s]}</b><span class="mid-price">{fmt_price(s)}</span></div>'
+            f'<span class="mid-chg" style="color:{col}">{chg_str(c)}</span></div>'
+            f'<div class="butter-wing right-wing">{right_bar}</div></div></div>')
     return ("<div class='butter'>" + "".join(rows) + "</div>"
-            f"<div class='note'>蝴蝶图：向右=涨(红)、向左=跌(绿)，中线 0%；横轴满刻度 = 当日持仓最大 |涨跌幅| = ±{maxabs:.2f}%（自适应）。基准 {D_LATEST} vs {D_PREV}。</div>")
+            f"<div class='note'>蝴蝶图：向右=涨(红)、向左=跌(绿)；中央为独立信息区，不占用两侧从 0% 起算的柱图空间。横轴满刻度 = 当日持仓最大 |涨跌幅| = ±{maxabs:.2f}%（自适应）。基准 {D_LATEST} vs {D_PREV}。</div>")
 
 
 def cat_block(cat, items):
@@ -862,13 +863,16 @@ td .rsi-lbl{color:inherit}
 .q4 div{margin:5px 0}
 .q4 b{color:var(--txt)}
 .butter{position:relative;padding:8px 0}
-.butter .row{display:grid;grid-template-columns:minmax(0,1fr) 76px;align-items:center;gap:10px;margin:8px 0;font-size:12px}
-.butter .barwrap{position:relative;height:30px;background:var(--card2);border-radius:7px;overflow:hidden}
-.butter .bar{position:absolute;top:5px;height:20px;border-radius:5px;opacity:.88}
-.butter .zero{position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--line)}
-.butter-mid{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2;display:flex;align-items:center;gap:7px;white-space:nowrap;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:2px 8px;font-variant-numeric:tabular-nums}
-.butter-mid b{font-size:12px;letter-spacing:.2px}.butter-mid span{font-weight:800}
-.butter-price{text-align:right;color:var(--sub);font-variant-numeric:tabular-nums}
+.butter .row{margin:8px 0;font-size:12px}
+.butter .barwrap{display:grid;grid-template-columns:minmax(0,1fr) 132px minmax(0,1fr);height:38px}
+.butter-wing{position:relative;background:var(--card2);overflow:hidden}
+.left-wing{border-radius:7px 0 0 7px}.right-wing{border-radius:0 7px 7px 0}
+.left-wing:after,.right-wing:before{content:"";position:absolute;top:0;bottom:0;width:1px;background:var(--line);z-index:2}
+.left-wing:after{right:0}.right-wing:before{left:0}
+.butter .bar{position:absolute;top:7px;height:24px;opacity:.88}
+.left-wing .bar{right:0;border-radius:5px 0 0 5px}.right-wing .bar{left:0;border-radius:0 5px 5px 0}
+.butter-mid{display:flex;flex-direction:column;align-items:center;justify-content:center;white-space:nowrap;background:var(--card);border-top:1px solid var(--line);border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums;line-height:1.25}
+.butter-mid div{display:flex;align-items:baseline;justify-content:center;gap:7px}.butter-mid b{font-size:12px;letter-spacing:.2px}.mid-price{color:var(--txt);font-weight:700}.mid-chg{font-size:11px;font-weight:800}
 .alloc-compare{display:grid;grid-template-columns:minmax(0,1fr) 84px minmax(0,1fr);gap:12px;align-items:center;padding:14px;background:var(--card2);border-radius:12px;border:1px solid var(--line)}
 .alloc-label{display:flex;justify-content:space-between;gap:10px;margin-bottom:8px;font-size:12px}.alloc-label span{font-size:15px;font-weight:800;font-variant-numeric:tabular-nums}
 .alloc-bar{display:flex;height:24px;overflow:hidden;border-radius:7px;background:var(--line)}.alloc-seg{height:100%;min-width:2px}.alloc-seg.cash,.alloc-dot.cash{background:var(--gold)}.alloc-seg.equity,.alloc-dot.equity{background:var(--accent)}.alloc-seg.option,.alloc-dot.option{background:#a56eff}.alloc-seg.other,.alloc-dot.other{background:#8a8f98}
@@ -910,8 +914,8 @@ a{color:var(--accent)}
  .grid2{grid-template-columns:1fr}
  .kv{grid-template-columns:repeat(2,1fr)}
  th,td{font-size:11.5px;padding:6px 5px}
- .butter .row{grid-template-columns:minmax(0,1fr) 62px}
- .butter-mid{gap:4px;padding:2px 5px}
+ .butter .barwrap{grid-template-columns:minmax(0,1fr) 104px minmax(0,1fr);height:40px}
+ .butter-mid div{gap:4px}.butter-mid b{font-size:11px}.mid-price{font-size:10.5px}.mid-chg{font-size:10.5px}
  .alloc-compare{grid-template-columns:1fr;gap:9px}
  .alloc-change{justify-self:center;min-width:92px}
  .calendar-focus{grid-template-columns:1fr;gap:4px}
