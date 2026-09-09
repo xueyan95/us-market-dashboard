@@ -1,6 +1,11 @@
 name: Daily US Market Dashboard
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - gen_dashboard.py
+      - .github/workflows/daily.yml
   schedule:
     # 3 班轮：收盘复盘（07:45 CST）+ 盘前速览（20:45 夏令时 / 21:45 冬令时）
     # DST 处理由 should_notify.py 在 Python 层动态判定
@@ -71,7 +76,7 @@ jobs:
         id: slot
         env:
           SLOT_UTC: ${{ github.event.schedule }}
-          SLOT_OVERRIDE: ${{ inputs.report_slot }}
+          SLOT_OVERRIDE: ${{ inputs.report_slot || (github.event_name == 'push' && 'postmarket') }}
         run: python should_notify.py
 
       - name: Fetch RSS news (multi-source)
@@ -133,7 +138,7 @@ jobs:
         run: python change_detection.py
 
       - name: Notify Telegram
-        if: ${{ fromJSON(steps.slot.outputs.slot_json).slot != 'skip' && (github.event_name != 'workflow_dispatch' || inputs.send_notification) }}
+        if: ${{ fromJSON(steps.slot.outputs.slot_json).slot != 'skip' && (github.event_name == 'schedule' || inputs.send_notification) }}
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
