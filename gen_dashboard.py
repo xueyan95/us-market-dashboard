@@ -991,6 +991,7 @@ td .rsi-lbl{color:inherit}
 .research-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}.research-card{background:var(--card2);border:1px solid var(--line);border-radius:11px;padding:13px}.research-hd{display:flex;align-items:center;gap:8px;font-size:10.5px}.research-type,.relation{color:var(--accent);background:rgba(76,141,255,.13);border-radius:6px;padding:2px 7px;font-weight:700}.research-prob{margin-left:auto;color:var(--gold);font-weight:800}.research-card h3{font-size:13.5px;margin:9px 0 5px}.research-card p{font-size:12px;line-height:1.6;margin:7px 0}.research-symbols{display:flex;gap:5px;flex-wrap:wrap}.symbol-pill{font-size:10px;padding:1px 6px;border:1px solid var(--line);border-radius:8px;color:var(--sub)}.research-line{font-size:11px;line-height:1.5;margin-top:5px;color:var(--sub)}.research-line b{color:var(--txt);margin-right:7px}.research-meta{display:flex;justify-content:space-between;margin-top:9px;font-size:10.5px;color:var(--sub)}.research-empty{padding:14px;background:var(--card2);border-radius:9px;color:var(--sub);font-size:12px}.research-subtitle{font-size:13px;color:var(--accent);margin:18px 0 8px}.evidence-row{padding:11px 13px;border-left:3px solid var(--accent);background:var(--card2);border-radius:8px;margin:7px 0;font-size:12px}.evidence-row p{margin:7px 0;line-height:1.5}.evidence-meta{display:flex;justify-content:space-between;gap:12px;color:var(--sub);font-size:10.5px}.pending-prob{color:var(--gold)}.research-input{margin-top:16px;border:1px solid var(--line);border-radius:10px;padding:11px 13px}.research-input summary{cursor:pointer;font-weight:700;color:var(--accent)}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}.form-grid label{display:flex;flex-direction:column;gap:5px;font-size:11px;color:var(--sub)}.form-grid .wide{grid-column:1/-1}.form-grid input,.form-grid textarea,.form-grid select{width:100%;box-sizing:border-box;background:var(--bg);color:var(--txt);border:1px solid var(--line);border-radius:7px;padding:9px;font:inherit}.research-submit{border:0;border-radius:8px;padding:9px 13px;background:var(--accent);color:white;font-weight:700;cursor:pointer}.form-note{font-size:10.5px;color:var(--sub);margin-left:10px}
 .health{border-radius:10px;padding:9px 12px;margin-top:10px;font-size:12px;background:rgba(10,158,110,.12);border:1px solid rgba(10,158,110,.35)}
 .health.degraded{background:rgba(246,195,77,.12);border-color:rgba(246,195,77,.45)}
+.tabbar{position:sticky;top:0;z-index:20;display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;margin:12px 0 2px;padding:7px;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:12px}.tabbar::-webkit-scrollbar{display:none}.tab-btn{flex:1 0 92px;min-height:40px;border:1px solid transparent;border-radius:9px;background:transparent;color:var(--sub);font-weight:700;font-size:12.5px;cursor:pointer;touch-action:manipulation;white-space:nowrap}.tab-btn[aria-selected="true"]{background:var(--accent);color:#fff;box-shadow:0 3px 12px rgba(76,141,255,.28)}.tab-btn:focus-visible{outline:2px solid var(--gold);outline-offset:2px}.tab-panel[hidden]{display:none}.tab-panel{animation:tab-in .16s ease-out}@keyframes tab-in{from{opacity:.3;transform:translateY(3px)}to{opacity:1;transform:none}}
 a{color:var(--accent)}
 @media(max-width:640px){
  .grid4{grid-template-columns:repeat(2,1fr)}
@@ -1003,7 +1004,9 @@ a{color:var(--accent)}
  .alloc-change{justify-self:center;min-width:92px}
  .calendar-focus{grid-template-columns:1fr;gap:4px}
  .form-grid{grid-template-columns:1fr}.form-grid .wide{grid-column:auto}.evidence-meta{flex-direction:column;gap:5px}.form-note{display:block;margin:9px 0 0}
+ .tabbar{margin-left:-2px;margin-right:-2px;padding:5px;gap:4px}.tab-btn{flex-basis:82px;min-height:44px;font-size:12px}
 }
+@media print{.tabbar{display:none}.tab-panel[hidden]{display:block}.tab-panel{animation:none}}
 """
 
 THEME_JS_HEAD = """<script>(function(){try{var m=localStorage.getItem('wb-dash-theme')||'auto';var d=(m==='auto'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):m);document.documentElement.setAttribute('data-theme',d);}catch(e){}})();</script>"""
@@ -1021,6 +1024,11 @@ var record={type:val('ri-type'),title:val('ri-title'),statement:val('ri-statemen
 var headings=[['记录类型',record.type],['标题',record.title],['核心内容',record.statement],['相关代码',record.symbols.join(', ')],['时间范围',record.horizon],['当前概率',record.probability===null?'':record.probability+'%'],['支持条件',record.supporting_conditions],['证伪条件',record.falsifiers],['替代解释',record.alternative_explanations],['来源链接',record.source_url],['公开状态',record.visibility],['输入渠道','dashboard']];
 var body=headings.map(function(x){return '### '+x[0]+'\\n'+(x[1]||'_No response_');}).join('\\n\\n')+'\\n\\n```research-entry\\n'+JSON.stringify(record,null,2)+'\\n```';
 var url='https://github.com/xueyan95/us-market-research-notes/issues/new?title='+encodeURIComponent('['+record.type+'] '+record.title)+'&body='+encodeURIComponent(body);window.open(url,'_blank','noopener');});})();
+(function(){var KEY='wb-dash-tab';var buttons=Array.from(document.querySelectorAll('.tab-btn'));var panels=Array.from(document.querySelectorAll('.tab-panel'));if(!buttons.length)return;
+function activate(name,focus){if(!document.getElementById('tab-'+name))name='decision';buttons.forEach(function(b){var on=b.dataset.tab===name;b.setAttribute('aria-selected',on?'true':'false');b.tabIndex=on?0:-1;if(on&&focus)b.focus();});panels.forEach(function(p){p.hidden=p.id!=='tab-'+name;});try{localStorage.setItem(KEY,name);history.replaceState(null,'','#tab-'+name);}catch(e){}}
+var initial=location.hash.indexOf('#tab-')===0?location.hash.slice(5):(localStorage.getItem(KEY)||'decision');activate(initial,false);
+buttons.forEach(function(b,i){b.addEventListener('click',function(){activate(b.dataset.tab,false);document.querySelector('.tabbar').scrollIntoView({block:'start'});});b.addEventListener('keydown',function(e){if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight')return;e.preventDefault();var n=(i+(e.key==='ArrowRight'?1:-1)+buttons.length)%buttons.length;activate(buttons[n].dataset.tab,true);});});
+window.addEventListener('hashchange',function(){if(location.hash.indexOf('#tab-')===0)activate(location.hash.slice(5),false);});})();
 </script>"""
 
 
@@ -1052,6 +1060,15 @@ body = f"""
   <div class="health {'degraded' if HEALTH.get('status') != 'ok' else ''}">数据健康：{esc(HEALTH.get('status','unknown'))} · 行情 {HEALTH.get('quote_count','—')} 只{PM_HEALTH} · 必需标的缺失涨跌幅：{esc(', '.join(HEALTH.get('missing_change', [])) or '无')} · 持仓快照：{esc(HEALTH.get('portfolio_as_of') or '未载入')}（{esc(HEALTH.get('portfolio_age_hours','—'))} 小时前）· 新闻：{esc(HEALTH.get('news_as_of') or '未载入')}</div>
 </header>
 
+<nav class="tabbar" role="tablist" aria-label="看板分区">
+  <button class="tab-btn" id="tab-btn-decision" role="tab" aria-controls="tab-decision" aria-selected="true" data-tab="decision">决策</button>
+  <button class="tab-btn" id="tab-btn-market" role="tab" aria-controls="tab-market" aria-selected="false" data-tab="market" tabindex="-1">市场</button>
+  <button class="tab-btn" id="tab-btn-portfolio" role="tab" aria-controls="tab-portfolio" aria-selected="false" data-tab="portfolio" tabindex="-1">持仓</button>
+  <button class="tab-btn" id="tab-btn-information" role="tab" aria-controls="tab-information" aria-selected="false" data-tab="information" tabindex="-1">信息</button>
+</nav>
+
+<main>
+<section class="tab-panel" id="tab-decision" role="tabpanel" aria-labelledby="tab-btn-decision">
 <div class="card">
   <h2>决策驾驶舱 <span class="tag">组合规则 + Thesis 验证</span></h2>
   <div class="sec-desc">优先显示与你持仓直接相关的风险；命题是待验证假设，不是既定事实。</div>
@@ -1075,6 +1092,8 @@ body = f"""
   </div>
 </div>
 
+</section>
+<section class="tab-panel" id="tab-market" role="tabpanel" aria-labelledby="tab-btn-market" hidden>
 {PREMARKET_PANEL}
 
 <div class="card">
@@ -1106,6 +1125,8 @@ body = f"""
   </table>
 </div>
 
+</section>
+<section class="tab-panel" id="tab-portfolio" role="tabpanel" aria-labelledby="tab-btn-portfolio" hidden>
 <div class="card">
   <h2>⑤ 持仓与观察</h2>
   <h2 style="font-size:13.5px">核心持仓 · 蝴蝶图（{len(HOLDINGS)}只 · 最近常规盘 {D_LATEST}）</h2>
@@ -1126,6 +1147,8 @@ body = f"""
   {heat_matrix()}
 </div>
 
+</section>
+<section class="tab-panel" id="tab-information" role="tabpanel" aria-labelledby="tab-btn-information" hidden>
 <div class="card">
   <h2>⑥ 重要信息 <span class="tag">{NEWS_TAG}</span></h2>
 
@@ -1196,6 +1219,8 @@ body = f"""
   <div class="sec-desc">隐含波动率 (IV) 反映市场对后续波动的预期；P/C ratio（用 OI 计算）> 1 偏看跌，&lt; 0.7 偏看涨。来源：yfinance option_chain，取 14-45 DTE 到期日。失败/无数据项显示 —。</div>
   {opt_html or '<div class="note">暂无期权数据</div>'}
 </div>
+</section>
+</main>
 
 <div class="foot">{DISCLAIMER}</div>
 </div>
