@@ -289,9 +289,6 @@ def build_prompt(m, news, news_source, research=None):
   ],
   "holdings_alert": "持仓预警：今日配置持仓里谁最强/谁最弱/是否有风险信号",
   "tomorrow_focus": "明日/近期关注事件（基于宏观经济日历，含日期+时间+预期）"
-  ,"english_translations": [
-    {{"zh": "本次 JSON 中一个会展示给用户的中文字符串，必须逐字一致", "en": "Its complete English translation with no Chinese characters"}}
-  ]
 }}
 
 要求：
@@ -317,9 +314,7 @@ def build_prompt(m, news, news_source, research=None):
 - 盘前 gap 必须来自所提供的盘前报价；没有对应新闻时明确写“未发现可验证催化”，不得强行归因
 - 盘后将 overnight_summary 留空、gap_alerts 和 opening_checks 输出空数组
 - 不输出“可以买入/卖出”这类泛化建议，交易前四问只用于验证和证伪
-- 主字段继续用中文输出，供中文看板与 Telegram 使用
-- english_translations 必须覆盖本次输出中所有会展示给用户的中文字符串，包括结论、四问、Fed 定性、主题、信息卡、事件、研究更新、持仓预警和近期关注；也覆盖【用户公开研究记录】里的中文标题与正文
-- english_translations.zh 必须与主字段或用户研究记录中的原文逐字一致；en 必须是完整英文且不得包含任何中文字符；英文新闻原标题、ticker、URL、媒体名和纯数字无需重复翻译
+- 中文输出
 """
 
 
@@ -333,7 +328,7 @@ def _call(model, prompt):
         "enable_thinking": True,
         "thinking_budget": THINKING_BUDGET,
         "temperature": 0.4,
-        "max_tokens": 8192,
+        "max_tokens": 4096,
     }
     req = urllib.request.Request(
         url, data=json.dumps(body).encode("utf-8"),
@@ -345,6 +340,52 @@ def _call(model, prompt):
     with urllib.request.urlopen(req, timeout=120) as resp:
         data = json.loads(resp.read().decode("utf-8"))
     return data["choices"][0]["message"]["content"]
+
+
+def display_chinese_strings(analysis, research=None):
+    """Collect unique user-visible Chinese strings for the optional English mirror."""
+    values = []
+
+    def visit(value):
+        if isinstance(value, dict):
+            for key, item in value.items():
+                if key not in {"english_translations", "grounding"}:
+                    visit(item)
+        elif isinstance(value, list):
+            for item in value:
+                visit(item)
+        elif isinstance(value, str) and re.search(r"[\u3400-\u9fff\uf900-\ufaff]", value):
+            values.append(value.strip())
+
+    visit(analysis)
+    visit((research or {}).get("entries", []))
+    return list(dict.fromkeys(x for x in values if x))[:100]
+
+
+def call_translation_mirror(analysis, research=None):
+    """Translate separately so a translation failure cannot break the Chinese analysis."""
+    strings = display_chinese_strings(analysis, research)
+    if not strings:
+        return []
+    prompt = ("Translate every Chinese string below into complete natural English. Preserve tickers, "
+              "numbers, URLs, dates, and finance meaning. Return JSON only as "
+              "{\"translations\":[{\"zh\":\"exact input\",\"en\":\"English with no Chinese characters\"}]}. "
+              "The zh value must be copied exactly and every input must appear once.\n\n" +
+              json.dumps(strings, ensure_ascii=False))
+    body = {"model": MODEL, "messages": [{"role": "user", "content": prompt}],
+            "response_format": {"type": "json_object"}, "enable_thinking": False,
+            "temperature": 0.1, "max_tokens": 4096}
+    req = urllib.request.Request(
+        f"{BASE}/chat/completions", data=json.dumps(body).encode("utf-8"),
+        headers={"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=90) as resp:
+        content = json.loads(resp.read().decode("utf-8"))["choices"][0]["message"]["content"]
+    result = json.loads(content).get("translations", [])
+    allowed = set(strings)
+    return [{"zh": str(x.get("zh", "")).strip(), "en": str(x.get("en", "")).strip()}
+            for x in result if str(x.get("zh", "")).strip() in allowed
+            and str(x.get("en", "")).strip()
+            and not re.search(r"[\u3400-\u9fff\uf900-\ufaff]", str(x.get("en", "")))]
 
 
 def validate_analysis_content(analysis):
@@ -516,6 +557,12 @@ def main():
     try:
         analysis, actual_model = call_siliconflow(prompt)
         analysis = validate_grounding(analysis, news, m, research)
+        try:
+            analysis["english_translations"] = call_translation_mirror(analysis, research)
+            print(f"英文镜像：{len(analysis['english_translations'])} 条")
+        except Exception as exc:  # noqa: BLE001
+            analysis["english_translations"] = []
+            print(f"英文镜像生成失败，中文主流程继续：{exc}")
     except Exception as e:  # noqa: BLE001
         print(f"SiliconFlow 调用失败: {e}")
         actual_model = None

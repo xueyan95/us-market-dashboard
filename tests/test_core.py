@@ -7,7 +7,7 @@ from fetch_data import (build_news_delta, completed_trading_dates, compute_prema
                         enrich_portfolio_snapshot, option_greeks)
 from portfolio import inherit_leveraged_layer_categories, leveraged_etfs, load_portfolio_config
 from should_notify import classify_slot
-from ai_analysis import build_prompt, validate_grounding
+from ai_analysis import build_prompt, display_chinese_strings, validate_grounding
 from research_inputs import parse_issue_body, public_entries
 
 
@@ -111,8 +111,13 @@ class CoreTests(unittest.TestCase):
 
     def test_bilingual_analysis_prompt_build_is_valid(self):
         prompt = build_prompt({}, [], "test", {"entries": []})
-        self.assertIn('"english_translations"', prompt)
-        self.assertIn('"zh":', prompt)
+        self.assertIn('"conclusion"', prompt)
+
+    def test_translation_mirror_collects_unique_display_strings(self):
+        strings = display_chinese_strings(
+            {"conclusion": "市场上涨", "news": [{"detail": "市场上涨"}, {"detail": "风险增加"}]},
+            {"entries": [{"title": "我的判断"}]})
+        self.assertEqual(strings, ["市场上涨", "风险增加", "我的判断"])
 
     def test_config_is_valid(self):
         config = load_portfolio_config(Path(__file__).parents[1] / "portfolio_config.json")
