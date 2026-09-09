@@ -559,6 +559,10 @@ for event in A.get("upcoming_events", [])[:8]:
     )
 if not upcoming_event_rows:
     upcoming_event_rows = '<tr><td colspan="4" class="muted" style="text-align:center;padding:12px">未来 7 天未发现有原始新闻佐证的公司/产品事件</td></tr>'
+telegram_focus_html = (
+    f'<div class="calendar-focus"><b>AI 近期关注 · 与 Telegram 同步</b><span>{esc(tomorrow)}</span></div>'
+    if tomorrow else ""
+)
 
 
 def premarket_panel():
@@ -871,6 +875,7 @@ td .rsi-lbl{color:inherit}
 .alloc-legend{display:flex;flex-wrap:wrap;gap:5px 12px;margin-top:8px;font-size:10.5px;color:var(--sub)}.alloc-legend b{color:var(--txt);font-variant-numeric:tabular-nums}.alloc-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:4px}
 .alloc-change{text-align:center;padding:8px 5px;border-radius:9px;background:var(--card);border:1px solid var(--line)}.alloc-change span{display:block;font-size:10px;color:var(--sub)}.alloc-change b{font-size:16px;font-variant-numeric:tabular-nums}.gain{color:var(--red)}.loss{color:var(--green)}.flat{color:var(--sub)}
 .pnl-vis{min-width:155px}.pnl-track{height:6px;background:var(--line);border-radius:4px;overflow:hidden;margin-bottom:4px}.pnl-fill{display:block;height:100%;border-radius:4px}.pnl-fill.gain{background:var(--red)}.pnl-fill.loss{background:var(--green)}.pnl-fill.flat{background:var(--sub)}.pnl-value{font-weight:700;font-variant-numeric:tabular-nums}
+.calendar-focus{display:grid;grid-template-columns:max-content 1fr;gap:12px;align-items:start;background:rgba(76,141,255,.10);border:1px solid rgba(76,141,255,.28);border-radius:10px;padding:11px 13px;margin-bottom:14px;font-size:12.5px}.calendar-focus b{color:var(--accent);white-space:nowrap}.calendar-focus span{line-height:1.6}
 .layer{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:8px 0;background:var(--card2)}
 .layer .lh{font-weight:700;font-size:12.5px;margin-bottom:4px}
 .layer .lt{color:var(--sub);font-size:11.5px;font-weight:400}
@@ -909,6 +914,7 @@ a{color:var(--accent)}
  .butter-mid{gap:4px;padding:2px 5px}
  .alloc-compare{grid-template-columns:1fr;gap:9px}
  .alloc-change{justify-self:center;min-width:92px}
+ .calendar-focus{grid-template-columns:1fr;gap:4px}
 }
 """
 
@@ -1069,6 +1075,7 @@ body = f"""
   <div class="sec-desc">
     公司/产品事件由 AI 从本次新闻输入提取，并通过原始 URL 与媒体源校验；宏观数据来自 westock 经济日历（权重≥3）。
   </div>
+  {telegram_focus_html}
   <h3 style="margin-top:4px;font-size:13.5px;color:var(--accent)">🏢 公司 / 产品事件</h3>
   <table><tr><th>日期/时间</th><th>事件</th><th>代码</th><th>来源</th></tr>{upcoming_event_rows}</table>
   <h3 style="margin-top:18px;font-size:13.5px;color:var(--accent)">🌐 高重要性宏观事件</h3>
