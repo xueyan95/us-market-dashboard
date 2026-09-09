@@ -1141,7 +1141,7 @@ function english(text){if(!cjk.test(text))return text;var trimmed=text.trim();if
 var walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT),texts=[],node;while(node=walker.nextNode()){if(node.parentElement&&node.parentElement.closest('script,style,#lang-toggle'))continue;texts.push([node,node.nodeValue]);}
 var attrs=[];document.querySelectorAll('[placeholder],[title],[aria-label]').forEach(function(el){['placeholder','title','aria-label'].forEach(function(name){if(el.hasAttribute(name)&&el.id!=='lang-toggle')attrs.push([el,name,el.getAttribute(name)]);});});
 var originalTitle=document.title,button=document.getElementById('lang-toggle');
-function apply(mode){var en=mode==='en';texts.forEach(function(x){x[0].nodeValue=en?english(x[1]):x[1];});attrs.forEach(function(x){x[0].setAttribute(x[1],en?english(x[2]):x[2]);});document.title=en?english(originalTitle):originalTitle;document.documentElement.lang=en?'en':'zh-CN';document.documentElement.setAttribute('data-language',mode);button.textContent=en?'ZH':'EN';button.setAttribute('aria-label',en?'Switch to Chinese':'切换为英文');localStorage.setItem(KEY,mode);}
+function apply(mode){var en=mode==='en';texts.forEach(function(x){x[0].nodeValue=en?english(x[1]):x[1];});attrs.forEach(function(x){x[0].setAttribute(x[1],en?english(x[2]):x[2]);});document.title=en?english(originalTitle):originalTitle;document.documentElement.lang=en?'en':'zh-CN';document.documentElement.setAttribute('data-language',mode);button.textContent=en?'Chinese':'English';button.setAttribute('aria-label',en?'Switch to Chinese':'切换为英文');localStorage.setItem(KEY,mode);}
 button.addEventListener('click',function(){apply(document.documentElement.getAttribute('data-language')==='en'?'zh':'en');});apply(localStorage.getItem(KEY)==='en'?'en':'zh');
 })();
 </script>""".replace("__LANG_MAP__", LANG_TRANSLATIONS_JSON)
@@ -1165,7 +1165,7 @@ body = f"""
   <div class="hdr-row">
     <div><h1>每日美股行情看板 <span class="badge">{REPORT_DATE} {REPORT_LABEL}</span></h1></div>
     <div class="top-controls">
-      <button id="lang-toggle" class="lang-toggle" type="button" aria-label="切换为英文">EN</button>
+      <button id="lang-toggle" class="lang-toggle" type="button" aria-label="切换为英文">English</button>
       <div class="theme-toggle" role="group" aria-label="主题切换">
         <span class="tt-label">主题</span>
         <button class="tt-btn" data-theme="auto">跟随系统</button>
