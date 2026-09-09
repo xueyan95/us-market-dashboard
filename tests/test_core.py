@@ -14,9 +14,9 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(completed_trading_dates(rows)[-1], "2026-01-05")
 
     def test_slot_routing(self):
-        self.assertEqual(classify_slot(0, 0, True), "postmarket")
-        self.assertEqual(classify_slot(13, 0, True), "premarket")
-        self.assertEqual(classify_slot(14, 0, False), "premarket")
+        self.assertEqual(classify_slot(23, 45, True), "postmarket")
+        self.assertEqual(classify_slot(12, 45, True), "premarket")
+        self.assertEqual(classify_slot(13, 45, False), "premarket")
         self.assertEqual(classify_slot(14, 30, False), "skip")
 
     def test_premarket_change_uses_previous_regular_close(self):
