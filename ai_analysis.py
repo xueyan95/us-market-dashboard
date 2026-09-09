@@ -52,6 +52,15 @@ def load_market():
         return json.load(f)
 
 
+def load_research():
+    here = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.join(here, "research_inputs.json")
+    if not os.path.exists(path):
+        return {"available": False, "entries": []}
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
 def load_news(m=None):
     """读 fetch_news.py 抓的 RSS 多源新闻。优先 news.json，没有再退到 yfinance。
 
@@ -98,7 +107,7 @@ def fetch_yf_news():
     return items[:12]
 
 
-def build_prompt(m, news, news_source):
+def build_prompt(m, news, news_source, research=None):
     q = m.get("quotes", {})
     pm = m.get("premarket", {}).get("quotes", {}) if REPORT_SLOT == "premarket" else {}
 
@@ -168,6 +177,14 @@ def build_prompt(m, news, news_source):
         link = str(n.get("link", ""))
         news_lines.append(f"- [{src}|{themes}] {n['title']}\n  摘要: {summary or '无'}\n  URL: {link or '无'}")
     news_text = "\n".join(news_lines) or "（暂无新闻）"
+    research_lines = []
+    for entry in (research or {}).get("entries", [])[:30]:
+        research_lines.append(
+            f"- [{entry.get('id')}|{entry.get('type')}|{','.join(entry.get('symbols', []))}] "
+            f"{entry.get('title')}：{entry.get('statement')}；当前概率={entry.get('probability', '未设')}；"
+            f"证伪条件={entry.get('falsifiers') or '未设'}；替代解释={entry.get('alternative_explanations') or '未设'}"
+        )
+    research_text = "\n".join(research_lines) or "（暂无公开的用户研究记录）"
 
     # 利率预期面板（实时数据驱动 + AI 定性）
     fedwatch = m.get("fedwatch", {})
@@ -231,6 +248,9 @@ def build_prompt(m, news, news_source):
 【近期多源新闻上下文（{news_source}，已分类主题）】
 {news_text}
 
+【用户公开研究记录】
+{research_text}
+
 下面是字段说明，不是回答示例。必须用本次行情与新闻完成实际分析，禁止复制字段说明；没有证据时写明数据不足。\n请输出 JSON（response_format=json_object 强制 JSON，不要任何 markdown 包裹或额外文字），字段：
 
 {{
@@ -261,6 +281,9 @@ def build_prompt(m, news, news_source):
   "upcoming_events": [
     {{"date": "YYYY-MM-DD", "time": "HH:MM 时区或 TBD", "symbol": "AAPL", "event": "公司或产品事件", "evidence_title": "必须逐字使用输入新闻标题", "source": "输入中的媒体源", "evidence_url": "输入中的原始URL"}}
   ],
+  "research_updates": [
+    {{"record_id": "R-12", "relation": "support/oppose/timing/alternative/related", "explanation": "新证据如何影响该记录", "suggested_probability": 60, "evidence_title": "必须逐字使用输入新闻标题", "source": "输入中的媒体源", "evidence_url": "输入中的原始URL"}}
+  ],
   "news": [
     {{"title": "原始新闻标题（挑最重要 5-8 条）", "detail": "一句话要点", "source": "媒体源或 ticker"}}
   ],
@@ -283,6 +306,8 @@ def build_prompt(m, news, news_source):
   不得为了凑类别或数字创造事件、来源、资金流或因果关系
 - upcoming_events 只提取 {today_iso} 起未来 7 天内、新闻标题或摘要明确给出日期的公司产品发布、开发者大会、投资者日等事件；最多 8 条
 - upcoming_events 的 evidence_title/source/evidence_url 必须逐字来自同一条输入新闻；日期不明确、已经发生或没有原始 URL 时不要收录
+- research_updates 只关联已提供的用户记录与新闻；record_id 必须存在，evidence_title/source/evidence_url 必须逐字来自同一条输入新闻
+- relation 只能是 support、oppose、timing、alternative、related；suggested_probability 只是待用户确认的建议，不得声称已经修改用户概率
 - news 给 5-8 条精选（跨主题）
 - 事实只能来自所提供的行情、标题、摘要和 URL；观点必须标为“推断”
 - 已经公布的事件不得写成明日关注；不能从股价上涨反推财报超预期
@@ -360,7 +385,7 @@ def call_siliconflow(prompt):
     raise RuntimeError(f"SiliconFlow 全部尝试失败，最后错误: {last_err}")
 
 
-def validate_grounding(analysis, news, market=None):
+def validate_grounding(analysis, news, market=None, research=None):
     """Drop AI cards that cannot be traced to one of the supplied URLs."""
     source_by_url = {str(item.get("link", "")).strip(): item for item in news if item.get("link")}
 
@@ -396,6 +421,25 @@ def validate_grounding(analysis, news, market=None):
                 and today <= event_date <= cutoff):
             events.append(event)
     analysis["upcoming_events"] = events
+    allowed_records = {str(item.get("id")) for item in (research or {}).get("entries", [])}
+    updates = []
+    for update in analysis.get("research_updates", [])[:12]:
+        url = str(update.get("evidence_url", "")).strip()
+        source = str(update.get("source", "")).strip()
+        evidence_title = str(update.get("evidence_title", "")).strip()
+        relation = str(update.get("relation", "")).strip()
+        original = source_by_url.get(url)
+        if (str(update.get("record_id")) in allowed_records
+                and relation in {"support", "oppose", "timing", "alternative", "related"}
+                and original and source == str(original.get("source", "")).strip()
+                and evidence_title == str(original.get("title", "")).strip()):
+            try:
+                suggested = float(update.get("suggested_probability"))
+                update["suggested_probability"] = min(100, max(0, suggested))
+            except (TypeError, ValueError):
+                update["suggested_probability"] = None
+            updates.append(update)
+    analysis["research_updates"] = updates
     allowed_pairs = {(str(item.get("title", "")).strip(), str(item.get("source", "")).strip())
                      for item in news}
     grounded_themes = []
@@ -408,7 +452,8 @@ def validate_grounding(analysis, news, market=None):
     analysis["news_themes"] = grounded_themes
     analysis["grounding"] = {"input_news": len(news), "verified_cards": len(cards),
                               "verified_themes": len(grounded_themes),
-                              "verified_upcoming_events": len(events)}
+                              "verified_upcoming_events": len(events),
+                              "verified_research_updates": len(updates)}
     if REPORT_SLOT == "premarket":
         supplied = ((market or {}).get("premarket", {}).get("quotes", {}))
         grounded_alerts = []
@@ -439,7 +484,8 @@ def main():
             "fedwatch": {"stance": "—", "stance_reason": "", "next_meeting": "—",
                          "current_range": "—", "curve_5s10s_bp": "—",
                          "latest_cpi": "—", "latest_nfp": "—", "note": "未配置"},
-            "news_themes": [], "news_cards": [], "upcoming_events": [], "news": [],
+            "news_themes": [], "news_cards": [], "upcoming_events": [],
+            "research_updates": [], "news": [],
             "holdings_alert": "", "tomorrow_focus": "",
         }
         here = os.path.dirname(os.path.abspath(__file__))
@@ -448,14 +494,15 @@ def main():
         return
 
     m = load_market()
+    research = load_research()
     news, news_source = load_news(m)
     print(f"加载新闻上下文: 来源={news_source}, {len(news)} 条")
 
-    prompt = build_prompt(m, news, news_source)
+    prompt = build_prompt(m, news, news_source, research)
     print(f"调用 SiliconFlow（{MODEL}）做 AI 研判...")
     try:
         analysis, actual_model = call_siliconflow(prompt)
-        analysis = validate_grounding(analysis, news, m)
+        analysis = validate_grounding(analysis, news, m, research)
     except Exception as e:  # noqa: BLE001
         print(f"SiliconFlow 调用失败: {e}")
         actual_model = None
@@ -466,7 +513,8 @@ def main():
             "fedwatch": {"stance": "—", "stance_reason": "", "next_meeting": "—",
                          "current_range": "—", "curve_5s10s_bp": "—",
                          "latest_cpi": "—", "latest_nfp": "—", "note": ""},
-            "news_themes": [], "news_cards": [], "upcoming_events": [], "news": [],
+            "news_themes": [], "news_cards": [], "upcoming_events": [],
+            "research_updates": [], "news": [],
             "holdings_alert": "", "tomorrow_focus": "",
             "error": str(e),
         }

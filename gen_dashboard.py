@@ -87,6 +87,7 @@ def load_json(name):
 M = load_json("market_data.json")
 A = load_json("analysis.json")
 FRAMEWORK = load_json("investment_framework.json")
+RESEARCH = load_json("research_inputs.json")
 
 QUOTES = M.get("quotes", {})
 PREMARKET = M.get("premarket", {})
@@ -728,6 +729,87 @@ def private_portfolio_panel():
 private_panel = private_portfolio_panel()
 
 
+def research_panel():
+    """Render explicitly public records and grounded news-to-thesis suggestions."""
+    entries = RESEARCH.get("entries", []) or []
+    by_id = {str(item.get("id")): item for item in entries}
+    type_labels = {"thesis": "Thesis", "information": "Information",
+                   "question": "Question", "observation": "Observation"}
+    relation_labels = {"support": "支持", "oppose": "反对", "timing": "影响时点",
+                       "alternative": "替代解释", "related": "相关"}
+    cards = ""
+    for item in entries[:12]:
+        probability = item.get("probability")
+        prob = f'<span class="research-prob">主观概率 {float(probability):g}%</span>' if probability is not None else ""
+        symbols = " ".join(f'<span class="symbol-pill">{esc(x)}</span>' for x in item.get("symbols", []))
+        detail = "".join(
+            f'<div class="research-line"><b>{label}</b>{esc(item.get(key))}</div>'
+            for key, label in (("supporting_conditions", "支持条件"), ("falsifiers", "证伪条件"),
+                               ("alternative_explanations", "替代解释")) if item.get(key)
+        )
+        source = esc(item.get("source_url", ""))
+        source_link = f'<a href="{source}" target="_blank" rel="noopener">原始来源</a>' if source else ""
+        cards += (
+            f'<article class="research-card"><div class="research-hd">'
+            f'<span class="research-type">{type_labels.get(item.get("type"), "记录")}</span>'
+            f'<span class="muted">{esc(item.get("id"))}</span>{prob}</div>'
+            f'<h3>{esc(item.get("title"))}</h3><div class="research-symbols">{symbols}</div>'
+            f'<p>{esc(item.get("statement"))}</p>{detail}'
+            f'<div class="research-meta">{esc(item.get("horizon"))} {source_link}</div></article>'
+        )
+    if not cards:
+        reason = "尚无明确设为公开的研究记录" if RESEARCH.get("available") else "研究库尚未连接"
+        cards = f'<div class="research-empty">{reason}。新记录默认保密，不会出现在公开看板。</div>'
+
+    updates = ""
+    for update in A.get("research_updates", [])[:12]:
+        record = by_id.get(str(update.get("record_id")))
+        if not record:
+            continue
+        suggested = update.get("suggested_probability")
+        suggested_html = (f'<b class="pending-prob">建议概率 {float(suggested):g}% · 待你确认</b>'
+                          if suggested is not None else '<b class="pending-prob">建议复核 · 待你确认</b>')
+        url = esc(update.get("evidence_url", ""))
+        evidence = esc(update.get("evidence_title", ""))
+        evidence_html = f'<a href="{url}" target="_blank" rel="noopener">{evidence}</a>' if url else evidence
+        updates += (
+            f'<div class="evidence-row"><div><span class="relation">'
+            f'{relation_labels.get(update.get("relation"), "相关")}</span> '
+            f'<b>{esc(record.get("title"))}</b></div><p>{esc(update.get("explanation"))}</p>'
+            f'<div class="evidence-meta">{suggested_html}<span>{evidence_html} · {esc(update.get("source"))}</span></div></div>'
+        )
+    if not updates:
+        updates = '<div class="research-empty">本次新闻中没有通过来源校验、可关联到公开研究记录的新证据。</div>'
+
+    return f'''
+    <div class="research-grid">{cards}</div>
+    <h3 class="research-subtitle">今日新闻 ↔ 研究记录</h3>
+    <div class="evidence-list">{updates}</div>
+    <details class="research-input"><summary>＋ 记录新的 Thesis / Information / Question</summary>
+      <div class="sec-desc">提交后会打开私有 GitHub 研究库的确认页。所有新记录默认保密；只有你主动选择“公开”后，内容才会进入本看板。</div>
+      <form id="research-form">
+        <div class="form-grid">
+          <label>类型<select id="ri-type"><option value="thesis">Thesis</option><option value="information">Information</option><option value="question">Question</option><option value="observation">Observation</option></select></label>
+          <label>相关代码<input id="ri-symbols" placeholder="NVDA, AAPL"></label>
+          <label class="wide">标题<input id="ri-title" required maxlength="160" placeholder="一句话说明这条记录"></label>
+          <label class="wide">核心内容<textarea id="ri-statement" required rows="4" placeholder="你观察到什么、推理链是什么？"></textarea></label>
+          <label>时间范围<input id="ri-horizon" placeholder="例如 3-6 个月"></label>
+          <label>当前主观概率（0-100）<input id="ri-probability" type="number" min="0" max="100" step="1" placeholder="60"></label>
+          <label class="wide">支持条件<textarea id="ri-support" rows="2" placeholder="出现哪些证据会增强这条判断？"></textarea></label>
+          <label class="wide">证伪条件<textarea id="ri-falsifiers" rows="2" placeholder="什么事实出现时应降低概率或放弃？"></textarea></label>
+          <label class="wide">替代解释<textarea id="ri-alternatives" rows="2" placeholder="同一现象还可能由什么原因造成？"></textarea></label>
+          <label class="wide">来源链接<input id="ri-source" type="url" placeholder="https://..."></label>
+          <label>公开状态<select id="ri-visibility"><option value="private" selected>保密（默认）</option><option value="public">公开到看板</option></select></label>
+        </div>
+        <button class="research-submit" type="submit">在私有研究库中确认并保存</button>
+        <span class="form-note">聊天入口：在当前聊天中说“记录为 thesis / information / question”。</span>
+      </form>
+    </details>'''
+
+
+research_html = research_panel()
+
+
 def decision_cockpit():
     snapshot = PRIVATE_SNAPSHOT if PRIVATE_SNAPSHOT.get("available") else {}
     risk = snapshot.get("risk", {})
@@ -906,6 +988,7 @@ td .rsi-lbl{color:inherit}
 .table-wrap{overflow-x:auto}
 .card>table{display:block;overflow-x:auto}
 .risk-alert{margin:10px 0;padding:9px 12px;border-left:3px solid var(--gold);background:var(--card2);font-size:12px}
+.research-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}.research-card{background:var(--card2);border:1px solid var(--line);border-radius:11px;padding:13px}.research-hd{display:flex;align-items:center;gap:8px;font-size:10.5px}.research-type,.relation{color:var(--accent);background:rgba(76,141,255,.13);border-radius:6px;padding:2px 7px;font-weight:700}.research-prob{margin-left:auto;color:var(--gold);font-weight:800}.research-card h3{font-size:13.5px;margin:9px 0 5px}.research-card p{font-size:12px;line-height:1.6;margin:7px 0}.research-symbols{display:flex;gap:5px;flex-wrap:wrap}.symbol-pill{font-size:10px;padding:1px 6px;border:1px solid var(--line);border-radius:8px;color:var(--sub)}.research-line{font-size:11px;line-height:1.5;margin-top:5px;color:var(--sub)}.research-line b{color:var(--txt);margin-right:7px}.research-meta{display:flex;justify-content:space-between;margin-top:9px;font-size:10.5px;color:var(--sub)}.research-empty{padding:14px;background:var(--card2);border-radius:9px;color:var(--sub);font-size:12px}.research-subtitle{font-size:13px;color:var(--accent);margin:18px 0 8px}.evidence-row{padding:11px 13px;border-left:3px solid var(--accent);background:var(--card2);border-radius:8px;margin:7px 0;font-size:12px}.evidence-row p{margin:7px 0;line-height:1.5}.evidence-meta{display:flex;justify-content:space-between;gap:12px;color:var(--sub);font-size:10.5px}.pending-prob{color:var(--gold)}.research-input{margin-top:16px;border:1px solid var(--line);border-radius:10px;padding:11px 13px}.research-input summary{cursor:pointer;font-weight:700;color:var(--accent)}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}.form-grid label{display:flex;flex-direction:column;gap:5px;font-size:11px;color:var(--sub)}.form-grid .wide{grid-column:1/-1}.form-grid input,.form-grid textarea,.form-grid select{width:100%;box-sizing:border-box;background:var(--bg);color:var(--txt);border:1px solid var(--line);border-radius:7px;padding:9px;font:inherit}.research-submit{border:0;border-radius:8px;padding:9px 13px;background:var(--accent);color:white;font-weight:700;cursor:pointer}.form-note{font-size:10.5px;color:var(--sub);margin-left:10px}
 .health{border-radius:10px;padding:9px 12px;margin-top:10px;font-size:12px;background:rgba(10,158,110,.12);border:1px solid rgba(10,158,110,.35)}
 .health.degraded{background:rgba(246,195,77,.12);border-color:rgba(246,195,77,.45)}
 a{color:var(--accent)}
@@ -919,6 +1002,7 @@ a{color:var(--accent)}
  .alloc-compare{grid-template-columns:1fr;gap:9px}
  .alloc-change{justify-self:center;min-width:92px}
  .calendar-focus{grid-template-columns:1fr;gap:4px}
+ .form-grid{grid-template-columns:1fr}.form-grid .wide{grid-column:auto}.evidence-meta{flex-direction:column;gap:5px}.form-note{display:block;margin:9px 0 0}
 }
 """
 
@@ -930,6 +1014,13 @@ function apply(mode){document.documentElement.setAttribute('data-theme',resolve(
 document.querySelectorAll('.tt-btn').forEach(function(b){b.classList.toggle('active',b.getAttribute('data-theme')===mode);});}
 document.querySelectorAll('.tt-btn').forEach(function(b){b.addEventListener('click',function(){saved=b.getAttribute('data-theme');localStorage.setItem(KEY,saved);apply(saved);});});
 mq.addEventListener('change',function(){if(saved==='auto')apply('auto');});apply(saved);})();
+(function(){var form=document.getElementById('research-form');if(!form)return;
+function val(id){return document.getElementById(id).value.trim();}
+form.addEventListener('submit',function(e){e.preventDefault();
+var record={type:val('ri-type'),title:val('ri-title'),statement:val('ri-statement'),symbols:val('ri-symbols').split(/[,，\\s]+/).filter(Boolean).map(function(x){return x.replace(/^\\$/,'').toUpperCase();}),horizon:val('ri-horizon'),probability:val('ri-probability')===''?null:Number(val('ri-probability')),supporting_conditions:val('ri-support'),falsifiers:val('ri-falsifiers'),alternative_explanations:val('ri-alternatives'),source_url:val('ri-source'),visibility:val('ri-visibility'),input_channel:'dashboard',status:'active'};
+var headings=[['记录类型',record.type],['标题',record.title],['核心内容',record.statement],['相关代码',record.symbols.join(', ')],['时间范围',record.horizon],['当前概率',record.probability===null?'':record.probability+'%'],['支持条件',record.supporting_conditions],['证伪条件',record.falsifiers],['替代解释',record.alternative_explanations],['来源链接',record.source_url],['公开状态',record.visibility],['输入渠道','dashboard']];
+var body=headings.map(function(x){return '### '+x[0]+'\\n'+(x[1]||'_No response_');}).join('\\n\\n')+'\\n\\n```research-entry\\n'+JSON.stringify(record,null,2)+'\\n```';
+var url='https://github.com/xueyan95/us-market-research-notes/issues/new?title='+encodeURIComponent('['+record.type+'] '+record.title)+'&body='+encodeURIComponent(body);window.open(url,'_blank','noopener');});})();
 </script>"""
 
 
@@ -965,6 +1056,12 @@ body = f"""
   <h2>决策驾驶舱 <span class="tag">组合规则 + Thesis 验证</span></h2>
   <div class="sec-desc">优先显示与你持仓直接相关的风险；命题是待验证假设，不是既定事实。</div>
   {decision_cockpit()}
+</div>
+
+<div class="card">
+  <h2>我的研究输入 <span class="tag">Thesis · 证伪 · 概率</span></h2>
+  <div class="sec-desc">原始判断由你维护；AI 只把可追溯新闻映射为支持、反对、时点或替代解释，并把概率变化作为待确认建议。</div>
+  {research_html}
 </div>
 
 <div class="card">

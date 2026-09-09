@@ -8,6 +8,7 @@ from fetch_data import (build_news_delta, completed_trading_dates, compute_prema
 from portfolio import inherit_leveraged_layer_categories, leveraged_etfs, load_portfolio_config
 from should_notify import classify_slot
 from ai_analysis import validate_grounding
+from research_inputs import parse_issue_body, public_entries
 
 
 class CoreTests(unittest.TestCase):
@@ -65,6 +66,37 @@ class CoreTests(unittest.TestCase):
         ]}
         grounded = validate_grounding(analysis, news)
         self.assertEqual([x["symbol"] for x in grounded["upcoming_events"]], ["AAPL"])
+
+    def test_research_json_defaults_private_and_parses_symbols(self):
+        body = '''```research-entry
+{"type":"thesis","title":"AI capex","statement":"Demand persists","symbols":"$NVDA, AMD","probability":65}
+```'''
+        entry = parse_issue_body(body, 7, "https://example.com/7")
+        self.assertEqual(entry["id"], "R-7")
+        self.assertEqual(entry["symbols"], ["NVDA", "AMD"])
+        self.assertEqual(entry["visibility"], "private")
+
+    def test_only_explicit_public_research_is_exported(self):
+        issues = [
+            {"number": 1, "body": "### 标题\nPrivate\n\n### 核心内容\nHidden", "updated_at": "2026-01-01"},
+            {"number": 2, "body": "### 标题\nPublic\n\n### 核心内容\nShown\n\n### 公开状态\n公开", "updated_at": "2026-01-02"},
+        ]
+        self.assertEqual([x["title"] for x in public_entries(issues)], ["Public"])
+
+    def test_research_update_requires_exact_news_and_record(self):
+        news = [{"title": "NVDA launches a new chip", "source": "Wire",
+                 "link": "https://example.com/nvda"}]
+        analysis = {"news_cards": [], "news_themes": [], "upcoming_events": [],
+                    "research_updates": [
+                        {"record_id": "R-2", "relation": "support", "explanation": "New product",
+                         "suggested_probability": 70, "evidence_title": news[0]["title"],
+                         "source": "Wire", "evidence_url": news[0]["link"]},
+                        {"record_id": "R-99", "relation": "support", "explanation": "Invented",
+                         "suggested_probability": 90, "evidence_title": news[0]["title"],
+                         "source": "Wire", "evidence_url": news[0]["link"]},
+                    ]}
+        grounded = validate_grounding(analysis, news, research={"entries": [{"id": "R-2"}]})
+        self.assertEqual([x["record_id"] for x in grounded["research_updates"]], ["R-2"])
 
     def test_config_is_valid(self):
         config = load_portfolio_config(Path(__file__).parents[1] / "portfolio_config.json")

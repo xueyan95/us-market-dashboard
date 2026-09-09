@@ -83,6 +83,13 @@ jobs:
         if: ${{ fromJSON(steps.slot.outputs.slot_json).slot != 'skip' }}
         run: python fetch_news.py
 
+      - name: Sync public research inputs
+        if: ${{ fromJSON(steps.slot.outputs.slot_json).slot != 'skip' }}
+        env:
+          RESEARCH_REPO: xueyan95/us-market-research-notes
+          RESEARCH_NOTES_TOKEN: ${{ secrets.RESEARCH_NOTES_TOKEN }}
+        run: python sync_research_inputs.py
+
       - name: Materialize Robinhood portfolio snapshot
         if: ${{ fromJSON(steps.slot.outputs.slot_json).slot != 'skip' }}
         env:
