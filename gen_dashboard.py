@@ -1111,7 +1111,7 @@ a{color:var(--accent)}
 @media print{.tabbar{display:none}.tab-panel[hidden]{display:block}.tab-panel{animation:none}}
 """
 
-THEME_JS_HEAD = """<script>(function(){try{var m=localStorage.getItem('wb-dash-theme')||'auto';var d=(m==='auto'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):m);document.documentElement.setAttribute('data-theme',d);}catch(e){}})();</script>"""
+THEME_JS_HEAD = """<script>(function(){try{var m=localStorage.getItem('wb-dash-theme')||'auto';var d=(m==='auto'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):m);document.documentElement.setAttribute('data-theme',d);var l=localStorage.getItem('wb-dash-language')==='en'?'en':'zh';document.documentElement.setAttribute('data-language',l);document.documentElement.lang=l==='en'?'en':'zh-CN';}catch(e){}})();</script>"""
 THEME_JS_BODY = """<script>
 (function(){var KEY='wb-dash-theme';var saved=localStorage.getItem(KEY)||'auto';var mq=matchMedia('(prefers-color-scheme: dark)');
 function resolve(mode){return mode==='auto'?(mq.matches?'dark':'light'):mode;}
