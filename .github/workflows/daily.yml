@@ -18,6 +18,11 @@ on:
         default: postmarket
         type: choice
         options: [postmarket, premarket]
+      send_notification:
+        description: Send Telegram notification
+        required: true
+        default: true
+        type: boolean
 
 concurrency:
   group: us-market-dashboard-pages
@@ -128,7 +133,7 @@ jobs:
         run: python change_detection.py
 
       - name: Notify Telegram
-        if: ${{ fromJSON(steps.slot.outputs.slot_json).slot != 'skip' }}
+        if: ${{ fromJSON(steps.slot.outputs.slot_json).slot != 'skip' && (github.event_name != 'workflow_dispatch' || inputs.send_notification) }}
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
