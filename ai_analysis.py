@@ -290,7 +290,7 @@ def build_prompt(m, news, news_source, research=None):
   "holdings_alert": "持仓预警：今日配置持仓里谁最强/谁最弱/是否有风险信号",
   "tomorrow_focus": "明日/近期关注事件（基于宏观经济日历，含日期+时间+预期）"
   ,"english_translations": [
-    {"zh": "本次 JSON 中一个会展示给用户的中文字符串，必须逐字一致", "en": "Its complete English translation with no Chinese characters"}
+    {{"zh": "本次 JSON 中一个会展示给用户的中文字符串，必须逐字一致", "en": "Its complete English translation with no Chinese characters"}}
   ]
 }}
 
