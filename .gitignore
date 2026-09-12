@@ -5,6 +5,7 @@ index.html
 news.json
 portfolio_snapshot.json
 research_inputs.json
+launch_context.json
 .state/
 
 # Python

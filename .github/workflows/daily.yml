@@ -6,15 +6,6 @@ on:
     paths:
       - gen_dashboard.py
       - .github/workflows/daily.yml
-  schedule:
-    # 3 班轮：收盘复盘（07:45 CST）+ 盘前速览（20:45 夏令时 / 21:45 冬令时）
-    # DST 处理由 should_notify.py 在 Python 层动态判定
-    # 07:45 CST = 23:45 UTC — 收盘复盘（每天，避开整点调度高峰）
-    - cron: '45 23 * * *'
-    # 20:45 CST = 12:45 UTC — 盘前（夏令时 3月-11月初）
-    - cron: '45 12 * * *'
-    # 21:45 CST = 13:45 UTC — 盘前（冬令时 11月初-3月初，08:45 ET）
-    - cron: '45 13 * * *'
   workflow_dispatch:
     inputs:
       report_slot:
@@ -28,6 +19,12 @@ on:
         required: true
         default: true
         type: boolean
+      trigger_source:
+        description: Invocation source for the build audit trail
+        required: true
+        default: github_ui
+        type: choice
+        options: [chatgpt_manual, github_ui]
 
 concurrency:
   group: us-market-dashboard-pages
@@ -78,6 +75,14 @@ jobs:
           SLOT_UTC: ${{ github.event.schedule }}
           SLOT_OVERRIDE: ${{ inputs.report_slot || (github.event_name == 'push' && 'postmarket') }}
         run: python should_notify.py
+
+      - name: Record launch context
+        if: ${{ fromJSON(steps.slot.outputs.slot_json).slot != 'skip' }}
+        env:
+          DASHBOARD_TRIGGER_SOURCE: ${{ inputs.trigger_source || 'github_ui' }}
+          DASHBOARD_REPORT_SLOT: ${{ fromJSON(steps.slot.outputs.slot_json).slot }}
+        run: |
+          python -c 'import json, os, pathlib; pathlib.Path("launch_context.json").write_text(json.dumps({"trigger_source": os.environ["DASHBOARD_TRIGGER_SOURCE"], "report_slot": os.environ["DASHBOARD_REPORT_SLOT"]}, ensure_ascii=False, indent=2) + "\n")'
 
       - name: Fetch RSS news (multi-source)
         if: ${{ fromJSON(steps.slot.outputs.slot_json).slot != 'skip' }}
@@ -145,7 +150,7 @@ jobs:
         run: python change_detection.py
 
       - name: Notify Telegram
-        if: ${{ fromJSON(steps.slot.outputs.slot_json).slot != 'skip' && (github.event_name == 'schedule' || inputs.send_notification) }}
+        if: ${{ fromJSON(steps.slot.outputs.slot_json).slot != 'skip' && inputs.send_notification }}
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -162,6 +167,7 @@ jobs:
             market_data.json
             analysis.json
             investment_framework.json
+            launch_context.json
           if-no-files-found: error
           retention-days: 90
 
