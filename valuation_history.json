@@ -2,15 +2,87 @@
   "schema_version": 1,
   "entries": [
     {
+      "date": "2023-12-29",
+      "spy": {
+        "forward_pe": 21.42,
+        "price": 461.39,
+        "source": "Siblis U.S. Large Cap forward P/E proxy (month-end)",
+        "proxy": true
+      }
+    },
+    {
+      "date": "2024-06-28",
+      "spy": {
+        "forward_pe": 20.93,
+        "price": 531.63,
+        "source": "Siblis U.S. Large Cap forward P/E proxy (month-end)",
+        "proxy": true
+      }
+    },
+    {
+      "date": "2024-12-31",
+      "spy": {
+        "forward_pe": 21.49,
+        "price": 576.22,
+        "source": "Siblis U.S. Large Cap forward P/E proxy (month-end)",
+        "proxy": true
+      }
+    },
+    {
+      "date": "2025-03-31",
+      "spy": {
+        "forward_pe": 20.25,
+        "price": 551.63,
+        "source": "Siblis U.S. Large Cap forward P/E proxy (month-end)",
+        "proxy": true
+      }
+    },
+    {
+      "date": "2025-06-30",
+      "spy": {
+        "forward_pe": 22.06,
+        "price": 611.08,
+        "source": "Siblis U.S. Large Cap forward P/E proxy (month-end)",
+        "proxy": true
+      }
+    },
+    {
+      "date": "2025-09-30",
+      "spy": {
+        "forward_pe": 22.8,
+        "price": 660.71,
+        "source": "Siblis U.S. Large Cap forward P/E proxy (month-end)",
+        "proxy": true
+      }
+    },
+    {
+      "date": "2025-12-31",
+      "spy": {
+        "forward_pe": 21.88,
+        "price": 678.32,
+        "source": "Siblis U.S. Large Cap forward P/E proxy (month-end)",
+        "proxy": true
+      }
+    },
+    {
+      "date": "2026-06-30",
+      "spy": {
+        "forward_pe": 20.55,
+        "price": 746.77,
+        "source": "Siblis U.S. Large Cap forward P/E proxy (month-end)",
+        "proxy": true
+      }
+    },
+    {
       "date": "2026-09-14",
       "spy": {
         "forward_pe": 21.15,
-        "price": 760.88,
+        "price": null,
         "source": "State Street Price/Earnings Ratio FY1"
       },
       "soxx": {
         "forward_pe": null,
-        "price": 497.4,
+        "price": null,
         "coverage_pct": 0.0,
         "holdings_count": 33,
         "status": "insufficient_coverage",
