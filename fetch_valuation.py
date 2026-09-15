@@ -25,6 +25,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SPY_URL = "https://www.ssga.com/us/en/individual/etfs/state-street-spdr-sp-500-etf-trust-spy"
 SOXX_HOLDINGS_URL = "https://www.ishares.com/us/products/239705/ishares-phlx-semiconductor-etf/latest-holdings.csv"
 BUSINESSQUANT_URL = "https://data.businessquant.com/estimates"
+SIBLIS_USA_FORWARD_PE_URL = "https://siblisresearch.supabase.co/functions/v1/free-data-api/v1/USA/pe-forward"
 MIN_SOXX_COVERAGE = 90.0
 
 
@@ -153,6 +154,43 @@ def current_valid_soxx(history, observation_date):
     return None
 
 
+def fetch_spy_proxy_history():
+    """Return free month-end U.S. large-cap forward-P/E proxy observations.
+
+    Siblis does not offer an exact SPY series in its free tier.  Every point is
+    therefore labelled as a proxy rather than silently blended with State
+    Street's official current SPY FY1 observation.
+    """
+    try:
+        payload = json.loads(get_text(SIBLIS_USA_FORWARD_PE_URL))
+    except (urllib.error.URLError, json.JSONDecodeError, TimeoutError):
+        return []
+    raw = payload.get("data") or []
+    if not raw:
+        return []
+    try:
+        import yfinance as yf
+        start = min(str(item["trading_day (EOD)"]) for item in raw)
+        closes = yf.Ticker("SPY").history(start=start, interval="1d")
+        prices = {stamp.date().isoformat(): round(float(value), 2)
+                  for stamp, value in closes["Close"].items()}
+    except Exception:  # noqa: BLE001
+        prices = {}
+    out = []
+    for item in raw:
+        try:
+            date = str(item["trading_day (EOD)"])
+            pe = round(float(item["value"]), 2)
+        except (KeyError, TypeError, ValueError):
+            continue
+        out.append({"date": date, "spy": {
+            "forward_pe": pe, "price": prices.get(date),
+            "source": "Siblis U.S. Large Cap forward P/E proxy (month-end)",
+            "proxy": True,
+        }})
+    return out
+
+
 def main():
     market_path = os.path.join(HERE, "market_data.json")
     market = load_json(market_path, {})
@@ -170,6 +208,10 @@ def main():
 
     history_path = os.path.join(HERE, "valuation_history.json")
     prior_history = load_json(history_path, {"schema_version": 1, "entries": []})
+    # Backfill once from the free, month-end proxy.  The official State Street
+    # point below remains authoritative for the current observation date.
+    for historical in fetch_spy_proxy_history():
+        prior_history = update_history(prior_history, historical)
     prior_valid_soxx = current_valid_soxx(prior_history, observation_date)
     soxx_pe = soxx_coverage = None
     soxx_holdings_count = 0
