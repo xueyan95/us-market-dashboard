@@ -25,7 +25,7 @@ from portfolio_snapshot import load_portfolio_snapshot, snapshot_equity_symbols
 
 # ---------------- 配置 ----------------
 ALL_SYMS = (
-    "usSPY,usQQQ,usIWM,usDIA,usSMH,usXLK,usIGV,usXLF,usXLE,usGLD,"
+    "usSPY,usSOXX,usQQQ,usIWM,usDIA,usSMH,usXLK,usIGV,usXLF,usXLE,usGLD,"
     "usNVDA,usAMD,usTSM,usAVGO,usMU,usARM,usASML,usAMAT,usMRVL,usCRDO,"
     "usINTC,usWOLF,usCOHR,usMSFT,usAMZN,usGOOGL,usMETA,usORCL,usCRWV,usNBIS,"
     "usANET,usVRT,usEQIX,usLAZR,usFOTO,usEUV,usNOW,usSNOW,usNET,usAPP,"

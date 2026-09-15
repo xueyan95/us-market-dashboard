@@ -212,6 +212,8 @@ DATA_BASIS = (
 CST = datetime.timezone(datetime.timedelta(hours=8))
 GEN_TIME = datetime.datetime.now(CST).strftime("%Y-%m-%d %H:%M") + "（北京时间）"
 HEALTH = M.get("data_health", {})
+VALUATION_HISTORY = M.get("valuation_history", {}).get("entries", [])
+VALUATION_JSON = json.dumps(VALUATION_HISTORY, ensure_ascii=False, separators=(",", ":")).replace("<", "\\u003c")
 PM_HEALTH = (f" · 盘前报价：{HEALTH.get('premarket_available', 0)}/{HEALTH.get('premarket_requested', 0)}"
              if REPORT_SLOT == "premarket" else "")
 
@@ -1064,11 +1066,13 @@ td .rsi-lbl{color:inherit}
 .research-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}.research-card{background:var(--card2);border:1px solid var(--line);border-radius:11px;padding:13px}.research-hd{display:flex;align-items:center;gap:8px;font-size:10.5px}.research-type,.relation{color:var(--accent);background:rgba(76,141,255,.13);border-radius:6px;padding:2px 7px;font-weight:700}.research-prob{margin-left:auto;color:var(--gold);font-weight:800}.research-card h3{font-size:13.5px;margin:9px 0 5px}.research-card p{font-size:12px;line-height:1.6;margin:7px 0}.research-symbols{display:flex;gap:5px;flex-wrap:wrap}.symbol-pill{font-size:10px;padding:1px 6px;border:1px solid var(--line);border-radius:8px;color:var(--sub)}.research-line{font-size:11px;line-height:1.5;margin-top:5px;color:var(--sub)}.research-line b{color:var(--txt);margin-right:7px}.research-meta{display:flex;justify-content:space-between;margin-top:9px;font-size:10.5px;color:var(--sub)}.research-empty{padding:14px;background:var(--card2);border-radius:9px;color:var(--sub);font-size:12px}.research-subtitle{font-size:13px;color:var(--accent);margin:18px 0 8px}.evidence-row{padding:11px 13px;border-left:3px solid var(--accent);background:var(--card2);border-radius:8px;margin:7px 0;font-size:12px}.evidence-row p{margin:7px 0;line-height:1.5}.evidence-meta{display:flex;justify-content:space-between;gap:12px;color:var(--sub);font-size:10.5px}.pending-prob{color:var(--gold)}.research-input{margin-top:16px;border:1px solid var(--line);border-radius:10px;padding:11px 13px}.research-input summary{cursor:pointer;font-weight:700;color:var(--accent)}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}.form-grid label{display:flex;flex-direction:column;gap:5px;font-size:11px;color:var(--sub)}.form-grid .wide{grid-column:1/-1}.form-grid input,.form-grid textarea,.form-grid select{width:100%;box-sizing:border-box;background:var(--bg);color:var(--txt);border:1px solid var(--line);border-radius:7px;padding:9px;font:inherit}.research-submit{border:0;border-radius:8px;padding:9px 13px;background:var(--accent);color:white;font-weight:700;cursor:pointer}.form-note{font-size:10.5px;color:var(--sub);margin-left:10px}
 .health{border-radius:10px;padding:9px 12px;margin-top:10px;font-size:12px;background:rgba(10,158,110,.12);border:1px solid rgba(10,158,110,.35)}
 .health.degraded{background:rgba(246,195,77,.12);border-color:rgba(246,195,77,.45)}
+.valuation-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.valuation-chart{background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:10px}.valuation-chart h3{font-size:13px;margin:0 0 4px}.valuation-canvas{display:block;width:100%;height:240px;cursor:crosshair}.valuation-tip{min-height:34px;font-size:11px;color:var(--sub);line-height:1.5;font-variant-numeric:tabular-nums}.valuation-meta{font-size:10.5px;color:var(--sub);margin:5px 0 9px;line-height:1.45}
 .tabbar{position:sticky;top:0;z-index:20;display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;margin:12px 0 2px;padding:7px;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:12px}.tabbar::-webkit-scrollbar{display:none}.tab-btn{flex:1 0 92px;min-height:40px;border:1px solid transparent;border-radius:9px;background:transparent;color:var(--sub);font-weight:700;font-size:12.5px;cursor:pointer;touch-action:manipulation;white-space:nowrap}.tab-icon{display:none}.tab-label{display:block}.tab-btn[aria-selected="true"]{background:var(--accent);color:#fff;box-shadow:0 3px 12px rgba(76,141,255,.28)}.tab-btn:focus-visible{outline:2px solid var(--gold);outline-offset:2px}.tab-panel[hidden]{display:none}.tab-panel{animation:tab-in .16s ease-out}@keyframes tab-in{from{opacity:.3;transform:translateY(3px)}to{opacity:1;transform:none}}
 a{color:var(--accent)}
 @media(max-width:640px){
  .grid4{grid-template-columns:repeat(2,1fr)}
  .grid2{grid-template-columns:1fr}
+ .valuation-grid{grid-template-columns:1fr}
  .kv{grid-template-columns:repeat(2,1fr)}
  th,td{font-size:11.5px;padding:6px 5px}
  .butter .barwrap{grid-template-columns:minmax(0,1fr) 104px minmax(0,1fr);height:40px}
@@ -1122,6 +1126,20 @@ function apply(mode){var en=mode==='en';texts.forEach(function(x){x[0].nodeValue
 button.addEventListener('click',function(){apply(document.documentElement.getAttribute('data-language')==='en'?'zh':'en');});apply(localStorage.getItem(KEY)==='en'?'en':'zh');
 })();
 </script>""".replace("__LANG_MAP__", LANG_TRANSLATIONS_JSON)
+
+VALUATION_JS = """<script>
+(function(){var rows=__VALUATION_DATA__||[];
+function fmt(n,d){return typeof n==='number'&&isFinite(n)?n.toFixed(d):'—';}
+function draw(id,key){var canvas=document.getElementById(id),tip=document.getElementById(id+'-tip');if(!canvas)return;var ctx=canvas.getContext('2d'),items=rows.filter(function(r){return r[key]&&typeof r[key].price==='number';});
+function paint(active){var rect=canvas.getBoundingClientRect(),ratio=window.devicePixelRatio||1,w=Math.max(280,Math.round(rect.width*ratio)),h=Math.round(240*ratio);canvas.width=w;canvas.height=h;ctx.setTransform(ratio,0,0,ratio,0,0);w/=ratio;h/=ratio;var p={l:42,r:43,t:14,b:28},cw=w-p.l-p.r,ch=h-p.t-p.b;ctx.clearRect(0,0,w,h);ctx.font='10px system-ui';ctx.strokeStyle='rgba(128,128,128,.28)';ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--sub');
+if(!items.length){ctx.fillText('暂无可绘制的历史数据',p.l,p.t+28);tip.textContent='等待首次有效数据；SOXX 同时要求 ≥90% 权重覆盖。';return;}
+var prices=items.map(function(r){return r[key].price}),pes=items.map(function(r){return r[key].forward_pe}).filter(function(v){return typeof v==='number'}),pmin=Math.min.apply(null,prices),pmax=Math.max.apply(null,prices),emin=pes.length?Math.min.apply(null,pes):0,emax=pes.length?Math.max.apply(null,pes):1;function pad(a,b){var z=(b-a)||Math.max(Math.abs(a)*.08,1);return [a-z*.12,b+z*.12]}var pp=pad(pmin,pmax),ep=pad(emin,emax);function x(i){return p.l+(items.length===1?cw/2:i*cw/(items.length-1))}function yp(v){return p.t+ch-(v-pp[0])*ch/(pp[1]-pp[0])}function ye(v){return p.t+ch-(v-ep[0])*ch/(ep[1]-ep[0])}
+for(var i=0;i<4;i++){var y=p.t+i*ch/3;ctx.beginPath();ctx.moveTo(p.l,y);ctx.lineTo(w-p.r,y);ctx.stroke();ctx.fillText(fmt(ep[1]-(ep[1]-ep[0])*i/3,1)+'x',2,y+3);ctx.fillText(fmt(pp[1]-(pp[1]-pp[0])*i/3,0),w-p.r+4,y+3)}
+ctx.strokeStyle='#4c8dff';ctx.lineWidth=2;ctx.beginPath();items.forEach(function(r,i){var xx=x(i),yy=yp(r[key].price);i?ctx.lineTo(xx,yy):ctx.moveTo(xx,yy)});ctx.stroke();ctx.strokeStyle='#f6c34d';ctx.beginPath();var started=false;items.forEach(function(r,i){var v=r[key].forward_pe;if(typeof v!=='number'){started=false;return}var xx=x(i),yy=ye(v);if(started)ctx.lineTo(xx,yy);else ctx.moveTo(xx,yy);started=true});ctx.stroke();ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--sub');ctx.fillText(items[0].date,p.l,h-8);if(items.length>1)ctx.fillText(items[items.length-1].date,w-p.r-68,h-8);
+if(active!==null){var r=items[active],xx=x(active);ctx.strokeStyle='rgba(255,255,255,.55)';ctx.beginPath();ctx.moveTo(xx,p.t);ctx.lineTo(xx,p.t+ch);ctx.stroke();ctx.fillStyle='#4c8dff';ctx.beginPath();ctx.arc(xx,yp(r[key].price),3,0,Math.PI*2);ctx.fill();if(typeof r[key].forward_pe==='number'){ctx.fillStyle='#f6c34d';ctx.beginPath();ctx.arc(xx,ye(r[key].forward_pe),3,0,Math.PI*2);ctx.fill();}tip.textContent=r.date+' · Forward P/E '+fmt(r[key].forward_pe,2)+'x · 价格 $'+fmt(r[key].price,2)+(key==='soxx'?' · 覆盖率 '+fmt(r[key].coverage_pct,1)+'% · '+(r[key].status||'—'):'');}}
+canvas.addEventListener('mousemove',function(e){var rect=canvas.getBoundingClientRect(),i=Math.round((e.clientX-rect.left-42)/Math.max(1,rect.width-42-43)*(items.length-1));paint(Math.max(0,Math.min(items.length-1,i)));});canvas.addEventListener('mouseleave',function(){paint(null);});paint(null);window.addEventListener('resize',function(){paint(null);});}
+draw('valuation-spy','spy');draw('valuation-soxx','soxx');})();
+</script>""".replace("__VALUATION_DATA__", VALUATION_JSON)
 
 
 if REPORT_SLOT == "premarket":
@@ -1203,6 +1221,15 @@ body = f"""
   <h2>③ 宏观数据 <span class="tag">债市 / 商品</span></h2>
   <div class="kv">{macro_kv or '<div class="it"><div class="k">暂无</div><div class="v">—</div></div>'}</div>
   <div class="note">来源：yfinance（^TNX/^TYX/^VIX/GC=F/CL=F/BTC-USD），{D_LATEST} 收盘。GC=F 为黄金期货，不是现货金。</div>
+</div>
+
+<div class="card">
+  <h2>ETF 估值趋势 <span class="tag">Forward P/E + 价格</span></h2>
+  <div class="sec-desc">左轴为 Forward P/E，右轴为 ETF 常规盘收盘价。SPY 使用 State Street 公布的 FY1 P/E；SOXX 为 iShares 每日持仓按市值加权、结合 Finnhub FY1 共识 EPS 的估算值。SOXX 只有估算覆盖率 ≥90% 时才绘制估值点。</div>
+  <div class="valuation-grid">
+    <div class="valuation-chart"><h3>SPY</h3><div class="valuation-meta">官方 FY1 P/E · State Street</div><canvas class="valuation-canvas" id="valuation-spy" aria-label="SPY forward P/E and price trend"></canvas><div class="valuation-tip" id="valuation-spy-tip">将鼠标移到图上查看数值。</div></div>
+    <div class="valuation-chart"><h3>SOXX</h3><div class="valuation-meta">估算 FY1 P/E · iShares 持仓 + Finnhub；显示覆盖率</div><canvas class="valuation-canvas" id="valuation-soxx" aria-label="SOXX forward P/E and price trend"></canvas><div class="valuation-tip" id="valuation-soxx-tip">将鼠标移到图上查看数值。</div></div>
+  </div>
 </div>
 
 <div class="card">
@@ -1331,6 +1358,7 @@ html = f"""<!DOCTYPE html>
 </head>
 <body>{body}
 {THEME_JS_BODY}
+{VALUATION_JS}
 {LANG_JS_BODY}
 </body>
 </html>"""

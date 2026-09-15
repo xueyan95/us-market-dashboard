@@ -31,7 +31,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -113,6 +113,12 @@ jobs:
           REPORT_SLOT: ${{ fromJSON(steps.slot.outputs.slot_json).slot }}
         run: python fetch_data.py
 
+      - name: Fetch free ETF forward-P/E observations
+        if: ${{ fromJSON(steps.slot.outputs.slot_json).slot != 'skip' }}
+        env:
+          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+        run: python fetch_valuation.py
+
       - name: Validate dashboard inputs
         if: ${{ fromJSON(steps.slot.outputs.slot_json).slot != 'skip' }}
         run: python validate_data.py
@@ -144,6 +150,15 @@ jobs:
           REPORT_SLOT: ${{ env.REPORT_SLOT }}
         run: python gen_dashboard.py
 
+      - name: Persist public valuation history
+        if: ${{ fromJSON(steps.slot.outputs.slot_json).slot != 'skip' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add valuation_history.json
+          git diff --cached --quiet || git commit -m "Record public ETF valuation history"
+          git push
+
       - name: Detect meaningful changes
         id: changes
         if: ${{ fromJSON(steps.slot.outputs.slot_json).slot != 'skip' }}
@@ -168,6 +183,7 @@ jobs:
             analysis.json
             investment_framework.json
             launch_context.json
+            valuation_history.json
           if-no-files-found: error
           retention-days: 90
 

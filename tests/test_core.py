@@ -9,6 +9,7 @@ from portfolio import inherit_leveraged_layer_categories, leveraged_etfs, load_p
 from should_notify import classify_slot
 from ai_analysis import build_prompt, display_chinese_strings, validate_grounding
 from research_inputs import parse_issue_body, public_entries
+from fetch_valuation import parse_soxx_holdings, parse_spy_fy1, select_fy1_eps, update_history
 from sync_portfolio_snapshot import validate_snapshot
 
 
@@ -144,6 +145,19 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(result[0][2][0][1], ["usCOHR", "usCOHX"])
         self.assertEqual(leveraged_etfs(config)["COHX"]["underlying"], "COHR")
         self.assertEqual(leveraged_etfs(config)["AEHG"]["underlying"], "AEHR")
+
+    def test_forward_pe_parsers_and_history_keep_one_point_per_day(self):
+        spy_html = '<th>Price/Earnings Ratio FY1</th><td class="data">21.15</td>'
+        self.assertEqual(parse_spy_fy1(spy_html), 21.15)
+        csv_text = 'Header\nTicker,Name,Weight (%),Market Value,Quantity\n"NVDA","NVIDIA","9.04","100.00","2.00"\n'
+        self.assertEqual(parse_soxx_holdings(csv_text)[0]["ticker"], "NVDA")
+        eps = select_fy1_eps({"data": [{"period": "2025-12-31", "epsAvg": 3},
+                                         {"period": "2026-12-31", "epsAvg": 4}]},
+                             datetime.date(2026, 1, 1))
+        self.assertEqual(eps, 4.0)
+        history = update_history({"entries": [{"date": "2026-01-01", "old": True}]},
+                                 {"date": "2026-01-01", "new": True})
+        self.assertEqual(history["entries"], [{"date": "2026-01-01", "new": True}])
 
 
 if __name__ == "__main__":
