@@ -15,7 +15,7 @@
         "holdings_count": 33,
         "status": "insufficient_coverage",
         "diagnostics": {
-          "request_error": 33
+          "http_403": 1
         },
         "source": "iShares holdings + Finnhub FY1 consensus EPS"
       }
