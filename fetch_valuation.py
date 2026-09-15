@@ -79,12 +79,17 @@ def select_fy1_eps(payload, today):
 
 
 def finnhub_fy1_eps(ticker, api_key, today):
+    """Return ``(EPS, diagnostic)`` without logging credentials or raw payloads."""
     query = urllib.parse.urlencode({"symbol": ticker, "freq": "annual", "token": api_key})
     try:
         payload = json.loads(get_text(f"{FINNHUB_URL}?{query}"))
-        return select_fy1_eps(payload, today)
+        if payload.get("error"):
+            return None, "access_denied"
+        if not payload.get("data"):
+            return None, "empty_response"
+        return select_fy1_eps(payload, today), "ok"
     except (urllib.error.URLError, json.JSONDecodeError, TimeoutError):
-        return None
+        return None, "request_error"
 
 
 def calculate_soxx_fy1(holdings, api_key, today, request_pause=1.05):
@@ -96,16 +101,22 @@ def calculate_soxx_fy1(holdings, api_key, today, request_pause=1.05):
     total_value = sum(row["market_value"] for row in holdings)
     covered_value = 0.0
     forward_earnings = 0.0
+    diagnostics = {}
     for index, row in enumerate(holdings):
-        eps = finnhub_fy1_eps(row["ticker"], api_key, today)
+        eps, diagnostic = finnhub_fy1_eps(row["ticker"], api_key, today)
+        diagnostics[diagnostic] = diagnostics.get(diagnostic, 0) + 1
         if eps is not None:
             covered_value += row["market_value"]
             forward_earnings += row["quantity"] * eps
+        # A permission denial cannot improve on subsequent tickers.  Stop early
+        # rather than wasting the free-tier request budget.
+        if diagnostic == "access_denied":
+            break
         if index < len(holdings) - 1:
             time.sleep(request_pause)
     coverage = round(100 * covered_value / total_value, 2) if total_value else 0.0
     pe = round(covered_value / forward_earnings, 2) if forward_earnings > 0 else None
-    return pe, coverage, len(holdings)
+    return pe, coverage, len(holdings), diagnostics
 
 
 def load_json(path, default):
@@ -141,11 +152,12 @@ def main():
 
     soxx_pe = soxx_coverage = None
     soxx_holdings_count = 0
+    soxx_diagnostics = {}
     soxx_status = "missing_api_key" if not api_key else "source_error"
     if api_key:
         try:
             holdings = parse_soxx_holdings(get_text(SOXX_HOLDINGS_URL))
-            soxx_pe, soxx_coverage, soxx_holdings_count = calculate_soxx_fy1(holdings, api_key, today)
+            soxx_pe, soxx_coverage, soxx_holdings_count, soxx_diagnostics = calculate_soxx_fy1(holdings, api_key, today)
             soxx_status = "ok" if soxx_pe is not None and soxx_coverage >= MIN_SOXX_COVERAGE else "insufficient_coverage"
             if soxx_status != "ok":
                 soxx_pe = None
@@ -158,7 +170,8 @@ def main():
                 "source": "State Street Price/Earnings Ratio FY1"},
         "soxx": {"forward_pe": soxx_pe, "price": (quotes.get("usSOXX") or {}).get("last"),
                  "coverage_pct": soxx_coverage, "holdings_count": soxx_holdings_count,
-                 "status": soxx_status, "source": "iShares holdings + Finnhub FY1 consensus EPS"},
+                 "status": soxx_status, "diagnostics": soxx_diagnostics,
+                 "source": "iShares holdings + Finnhub FY1 consensus EPS"},
     }
     history_path = os.path.join(HERE, "valuation_history.json")
     history = update_history(load_json(history_path, {"schema_version": 1, "entries": []}), observation)
@@ -170,7 +183,7 @@ def main():
         json.dump(market, handle, ensure_ascii=False, indent=2)
     print(f"[valuation] SPY FY1={'ok' if spy_pe else 'unavailable'}; "
           f"SOXX={soxx_status}; coverage={soxx_coverage if soxx_coverage is not None else 'n/a'}%; "
-          f"holdings={soxx_holdings_count}")
+          f"holdings={soxx_holdings_count}; diagnostics={soxx_diagnostics}")
 
 
 if __name__ == "__main__":
