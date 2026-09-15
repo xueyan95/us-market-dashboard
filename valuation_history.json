@@ -11,11 +11,10 @@
       "soxx": {
         "forward_pe": null,
         "price": 497.4,
-        "coverage_pct": 49.06,
+        "coverage_pct": 0.0,
         "holdings_count": 33,
         "status": "insufficient_coverage",
         "diagnostics": {
-          "ok": 7,
           "http_429": 1
         },
         "source": "iShares holdings + BusinessQuant FY1 consensus EPS"
