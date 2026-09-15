@@ -891,8 +891,11 @@ def main():
     print(f"  利率环境: curve_5s10s={rate_context.get('curve_5s10s_bp')}bp "
           f"next_FOMC={rate_context.get('next_meeting')} {rate_context.get('next_meeting_time')}")
 
-    required = list(dict.fromkeys(HOLDINGS + ["usSPY", "usQQQ", "usIWM", "usDIA", "usSMH",
-                                                   "usXLK", "usIGV", "usXLF", "usXLE", "usGLD"]))
+    # Watchlist quotes may be unavailable for newly launched/leveraged ETFs.
+    # They must be visible as unavailable, but must not suppress a whole
+    # dashboard when the benchmark market data and authoritative broker total
+    # are present.
+    required = ["usSPY", "usQQQ", "usIWM", "usDIA", "usSMH", "usXLK", "usIGV", "usXLF", "usXLE", "usGLD"]
     missing_change = [s.removeprefix("us") for s in required
                       if (quotes.get(s) or {}).get("chg_pct") is None]
     news_age = news_data.get("generated_at")

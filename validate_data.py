@@ -15,8 +15,14 @@ def main():
     if health.get("missing_change"):
         errors.append("missing % change: " + ", ".join(health["missing_change"]))
     snapshot = market.get("private_portfolio_snapshot", {})
-    if snapshot.get("available") and not snapshot.get("valuation", {}).get("equity_complete"):
-        errors.append("equity valuation incomplete")
+    # Broker total is the authoritative latest-assets display.  A missing
+    # third-party quote for a watchlist/leveraged ETF must not block deployment
+    # when that fresh broker total is available; individual rows remain marked
+    # unavailable instead of being estimated.
+    broker_total = snapshot.get("account", {}).get("broker_total_value")
+    if (snapshot.get("available") and not snapshot.get("valuation", {}).get("equity_complete")
+            and broker_total in (None, 0, "", 0.0)):
+        errors.append("equity valuation incomplete without broker total")
     curve = market.get("rate_context", {}).get("curve_5s10s_bp")
     if curve is not None and abs(float(curve)) > 1000:
         errors.append("implausible 5s10s curve")

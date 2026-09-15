@@ -55,6 +55,13 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(enriched["valuation"]["total_value"], 155)
         self.assertEqual(enriched["last_close_valuation"]["total_value"], 150)
 
+    def test_broker_total_remains_authoritative_when_a_watchlist_quote_is_missing(self):
+        snapshot = {"available": True, "account": {"broker_total_value": 1234},
+                    "equities": [{"symbol": "UNQUOTED", "quantity": 1}], "options": []}
+        enriched = enrich_portfolio_snapshot(snapshot, {})
+        self.assertFalse(enriched["valuation"]["equity_complete"])
+        self.assertEqual(enriched["account"]["broker_total_value"], 1234)
+
     def test_fresh_broker_snapshot_requires_consistent_breakdown(self):
         now = datetime.datetime.now(datetime.timezone.utc).isoformat()
         snapshot = {
