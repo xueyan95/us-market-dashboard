@@ -2,7 +2,7 @@
 """Build transparent, free ETF forward-P/E observations.
 
 SPY is read from State Street's published ``Price/Earnings Ratio FY1``.
-SOXX is calculated from iShares' public daily holdings file and Finnhub's
+SOXX is calculated from iShares' public daily holdings file and BusinessQuant's
 FY1 consensus EPS estimates.  A SOXX point is deliberately withheld unless
 the estimates cover at least 90% of its portfolio weight.
 
@@ -24,7 +24,7 @@ import urllib.request
 HERE = os.path.dirname(os.path.abspath(__file__))
 SPY_URL = "https://www.ssga.com/us/en/individual/etfs/state-street-spdr-sp-500-etf-trust-spy"
 SOXX_HOLDINGS_URL = "https://www.ishares.com/us/products/239705/ishares-phlx-semiconductor-etf/latest-holdings.csv"
-FINNHUB_URL = "https://finnhub.io/api/v1/stock/eps-estimate"
+BUSINESSQUANT_URL = "https://data.businessquant.com/estimates"
 MIN_SOXX_COVERAGE = 90.0
 
 
@@ -65,24 +65,28 @@ def parse_soxx_holdings(text):
 
 
 def select_fy1_eps(payload, today):
-    """Choose the nearest positive annual consensus estimate ending after today."""
+    """Choose the first positive, forward annual consensus EPS estimate."""
     candidates = []
-    for item in payload.get("data") or []:
-        try:
-            period = dt.date.fromisoformat(str(item.get("period", ""))[:10])
-            eps = float(item.get("epsAvg"))
-        except (TypeError, ValueError):
+    for section in payload.get("data") or []:
+        if section.get("dimension") != "annual":
             continue
-        if period >= today and math.isfinite(eps) and eps > 0:
-            candidates.append((period, eps))
+        for item in section.get("estimates") or []:
+            try:
+                year = int(str(item.get("period", "")))
+                eps = float(item.get("value_estimate"))
+            except (TypeError, ValueError):
+                continue
+            if (item.get("data_type") == "estimate" and year >= today.year
+                    and math.isfinite(eps) and eps > 0):
+                candidates.append((year, eps))
     return min(candidates, default=(None, None))[1]
 
 
-def finnhub_fy1_eps(ticker, api_key, today):
+def businessquant_fy1_eps(ticker, api_key, today):
     """Return ``(EPS, diagnostic)`` without logging credentials or raw payloads."""
-    query = urllib.parse.urlencode({"symbol": ticker, "freq": "annual", "token": api_key})
+    query = urllib.parse.urlencode({"ticker": ticker, "mode": "eps", "api_key": api_key})
     try:
-        payload = json.loads(get_text(f"{FINNHUB_URL}?{query}"))
+        payload = json.loads(get_text(f"{BUSINESSQUANT_URL}?{query}"))
         if payload.get("error"):
             return None, "access_denied"
         if not payload.get("data"):
@@ -94,7 +98,7 @@ def finnhub_fy1_eps(ticker, api_key, today):
         return None, "request_error"
 
 
-def calculate_soxx_fy1(holdings, api_key, today, request_pause=1.05):
+def calculate_soxx_fy1(holdings, api_key, today, request_pause=0.4):
     """Calculate aggregate market value / FY1 aggregate earnings.
 
     The method is equivalent to a market-value weighted harmonic P/E average,
@@ -105,7 +109,7 @@ def calculate_soxx_fy1(holdings, api_key, today, request_pause=1.05):
     forward_earnings = 0.0
     diagnostics = {}
     for index, row in enumerate(holdings):
-        eps, diagnostic = finnhub_fy1_eps(row["ticker"], api_key, today)
+        eps, diagnostic = businessquant_fy1_eps(row["ticker"], api_key, today)
         diagnostics[diagnostic] = diagnostics.get(diagnostic, 0) + 1
         if eps is not None:
             covered_value += row["market_value"]
@@ -145,7 +149,7 @@ def main():
         raise RuntimeError("market_data.json has no completed-session date")
     today = dt.date.fromisoformat(observation_date)
     quotes = market.get("quotes", {})
-    api_key = os.environ.get("FINNHUB_API_KEY", "").strip()
+    api_key = os.environ.get("BUSINESSQUANT_API_KEY", "").strip()
     spy_pe = None
     try:
         spy_pe = parse_spy_fy1(get_text(SPY_URL))
@@ -173,7 +177,7 @@ def main():
         "soxx": {"forward_pe": soxx_pe, "price": (quotes.get("usSOXX") or {}).get("last"),
                  "coverage_pct": soxx_coverage, "holdings_count": soxx_holdings_count,
                  "status": soxx_status, "diagnostics": soxx_diagnostics,
-                 "source": "iShares holdings + Finnhub FY1 consensus EPS"},
+                 "source": "iShares holdings + BusinessQuant FY1 consensus EPS"},
     }
     history_path = os.path.join(HERE, "valuation_history.json")
     history = update_history(load_json(history_path, {"schema_version": 1, "entries": []}), observation)

@@ -151,8 +151,9 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(parse_spy_fy1(spy_html), 21.15)
         csv_text = 'Header\nTicker,Name,Weight (%),Market Value,Quantity\n"NVDA","NVIDIA","9.04","100.00","2.00"\n'
         self.assertEqual(parse_soxx_holdings(csv_text)[0]["ticker"], "NVDA")
-        eps = select_fy1_eps({"data": [{"period": "2025-12-31", "epsAvg": 3},
-                                         {"period": "2026-12-31", "epsAvg": 4}]},
+        eps = select_fy1_eps({"data": [{"dimension": "annual", "estimates": [
+            {"period": "2025", "data_type": "reported", "value_estimate": 3},
+            {"period": "2026", "data_type": "estimate", "value_estimate": 4}]}]},
                              datetime.date(2026, 1, 1))
         self.assertEqual(eps, 4.0)
         history = update_history({"entries": [{"date": "2026-01-01", "old": True}]},

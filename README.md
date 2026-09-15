@@ -23,7 +23,7 @@ should_notify.py（交易日/时段判断）
 | 近期新闻上下文 | 多源 RSS，yfinance 仅作兜底 | 无 |
 | AI 研判 + 利率环境摘要 | SiliconFlow（硅基流动，OpenAI 兼容） | **SILICONFLOW_API_KEY** |
 | SPY Forward P/E | State Street 公布的 Price/Earnings Ratio FY1 | 无 |
-| SOXX Forward P/E（估算） | iShares 每日持仓 + Finnhub FY1 共识 EPS | **FINNHUB_API_KEY**（免费层） |
+| SOXX Forward P/E（估算） | iShares 每日持仓 + BusinessQuant FY1 共识 EPS | **BUSINESSQUANT_API_KEY**（免费层） |
 | Telegram 推送 | Telegram Bot API | **TELEGRAM_BOT_TOKEN** + **TELEGRAM_CHAT_ID**（可空，缺则静默跳过） |
 | 多端访问 | GitHub Pages（自动部署） | 仓库需 public |
 
@@ -65,7 +65,7 @@ should_notify.py（交易日/时段判断）
 看板会每天记录公开的 ETF 估值与常规盘收盘价，并以双轴趋势图展示：左轴为 Forward P/E、右轴为 ETF 价格；鼠标悬停可查看当日数值。
 
 - **SPY**：使用 State Street 免费公布的 `Price/Earnings Ratio FY1`。
-- **SOXX**：下载 iShares 免费每日持仓，用各成分股持仓市值除以 FY1 共识盈利之和计算，等价于市值加权的调和平均 P/E；不会把成分股 P/E 做算术平均。
+- **SOXX**：下载 iShares 免费每日持仓，用各成分股持仓市值除以 BusinessQuant 的 FY1 共识盈利之和计算，等价于市值加权的调和平均 P/E；不会把成分股 P/E 做算术平均。
 - **质量门槛**：只有获得 FY1 共识 EPS 的成分股覆盖 SOXX 至少 90% 权重时，才写入和绘制 SOXX Forward P/E。低于阈值会显示缺口与覆盖率，绝不以 trailing P/E 替代。
 - `valuation_history.json` 只包含公开 ETF 估值、收盘价、来源和覆盖率；Actions 以机器人提交将其保存在仓库，供长期趋势图使用，不包含账户、持仓、成本或密钥。
 

@@ -116,7 +116,7 @@ jobs:
       - name: Fetch free ETF forward-P/E observations
         if: ${{ fromJSON(steps.slot.outputs.slot_json).slot != 'skip' }}
         env:
-          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+          BUSINESSQUANT_API_KEY: ${{ secrets.BUSINESSQUANT_API_KEY }}
         run: python fetch_valuation.py
 
       - name: Validate dashboard inputs
