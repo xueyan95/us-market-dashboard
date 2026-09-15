@@ -191,6 +191,16 @@ def fetch_spy_proxy_history():
     return out
 
 
+def fetch_latest_spy_close():
+    """Fallback only for the public SPY chart when the primary quote is absent."""
+    try:
+        import yfinance as yf
+        closes = yf.Ticker("SPY").history(period="5d", interval="1d")["Close"]
+        return round(float(closes.iloc[-1]), 2) if not closes.empty else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def main():
     market_path = os.path.join(HERE, "market_data.json")
     market = load_json(market_path, {})
@@ -233,9 +243,10 @@ def main():
         except urllib.error.URLError as exc:
             print(f"[valuation] SOXX source unavailable: {exc.reason}")
 
+    spy_price = (quotes.get("usSPY") or {}).get("last") or fetch_latest_spy_close()
     observation = {
         "date": observation_date,
-        "spy": {"forward_pe": spy_pe, "price": (quotes.get("usSPY") or {}).get("last"),
+        "spy": {"forward_pe": spy_pe, "price": spy_price,
                 "source": "State Street Price/Earnings Ratio FY1"},
         "soxx": {"forward_pe": soxx_pe, "price": (quotes.get("usSOXX") or {}).get("last"),
                  "coverage_pct": soxx_coverage, "holdings_count": soxx_holdings_count,
