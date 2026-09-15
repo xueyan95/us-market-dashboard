@@ -88,6 +88,8 @@ def finnhub_fy1_eps(ticker, api_key, today):
         if not payload.get("data"):
             return None, "empty_response"
         return select_fy1_eps(payload, today), "ok"
+    except urllib.error.HTTPError as exc:
+        return None, f"http_{exc.code}"
     except (urllib.error.URLError, json.JSONDecodeError, TimeoutError):
         return None, "request_error"
 
@@ -110,7 +112,7 @@ def calculate_soxx_fy1(holdings, api_key, today, request_pause=1.05):
             forward_earnings += row["quantity"] * eps
         # A permission denial cannot improve on subsequent tickers.  Stop early
         # rather than wasting the free-tier request budget.
-        if diagnostic == "access_denied":
+        if diagnostic == "access_denied" or diagnostic.startswith("http_"):
             break
         if index < len(holdings) - 1:
             time.sleep(request_pause)
