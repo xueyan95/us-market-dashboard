@@ -98,11 +98,13 @@ def businessquant_fy1_eps(ticker, api_key, today):
         return None, "request_error"
 
 
-def calculate_soxx_fy1(holdings, api_key, today, request_pause=0.4):
+def calculate_soxx_fy1(holdings, api_key, today, request_pause=1.1):
     """Calculate aggregate market value / FY1 aggregate earnings.
 
     The method is equivalent to a market-value weighted harmonic P/E average,
     and avoids the mathematically-invalid arithmetic average of company P/Es.
+    The free endpoint is intentionally paced at <=1 request/second so a daily
+    33-holding refresh stays below its observed short-window rate limit.
     """
     total_value = sum(row["market_value"] for row in holdings)
     covered_value = 0.0
