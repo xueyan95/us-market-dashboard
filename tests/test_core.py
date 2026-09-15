@@ -9,6 +9,7 @@ from portfolio import inherit_leveraged_layer_categories, leveraged_etfs, load_p
 from should_notify import classify_slot
 from ai_analysis import build_prompt, display_chinese_strings, validate_grounding
 from research_inputs import parse_issue_body, public_entries
+from sync_portfolio_snapshot import validate_snapshot
 
 
 class CoreTests(unittest.TestCase):
@@ -52,6 +53,19 @@ class CoreTests(unittest.TestCase):
             snapshot, {"usTEST": {"last": 105}}, {"usTEST": {"last": 100}})
         self.assertEqual(enriched["valuation"]["total_value"], 155)
         self.assertEqual(enriched["last_close_valuation"]["total_value"], 150)
+
+    def test_fresh_broker_snapshot_requires_consistent_breakdown(self):
+        now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        snapshot = {
+            "schema_version": 2, "as_of": now, "currency": "USD",
+            "account": {"cash": 10, "broker_total_value": 100,
+                        "equity_value": 70, "options_value": 20},
+            "equities": [{"symbol": "TEST", "quantity": 1}], "options": [],
+        }
+        self.assertEqual(validate_snapshot(snapshot)["equities"], 1)
+        snapshot["account"]["cash"] = 101
+        with self.assertRaises(ValueError):
+            validate_snapshot(snapshot)
 
     def test_company_event_requires_matching_news_evidence(self):
         title = "Apple announces product event for today"

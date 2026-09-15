@@ -138,7 +138,7 @@ EN_TRANSLATIONS = {
     "横轴满刻度 = 当日持仓最大 |涨跌幅| =": "Full horizontal scale = largest absolute daily holding move =",
     "自适应": "adaptive", "基准": "Reference", "今日持仓：": "Today's holdings: ", "上涨": "gainers", "下跌": "decliners",
     "Robinhood 组合面板": "Robinhood Portfolio", "常规盘收盘估值": "Regular-session close valuation",
-    "股票盘前价优先；期权最近常规报价": "Pre-market equity prices; latest regular options quotes", "最新资产": "Latest assets",
+    "股票盘前价优先；期权最近常规报价": "Pre-market equity prices; latest regular options quotes", "最新资产": "Latest assets", "券商资产（快照）": "Broker assets (snapshot)", "券商快照：": "Broker snapshot: ", "已过期": "Stale", "新鲜": "Fresh",
     "股票明细": "Equity Positions", "期权明细": "Option Positions", "代码": "Ticker", "数量": "Quantity",
     "平均成本/张": "Average cost / contract", "平均成本": "Average cost", "现价": "Current price", "市值·权重": "Value · Weight",
     "市值": "Market value", "权重": "Weight", "浮盈亏": "Unrealized P/L", "合约": "Contract", "到期": "Expiry",
@@ -719,6 +719,9 @@ def private_portfolio_panel():
                 f'style="width:{width:.1f}%"></span></div>'
                 f'<span class="pnl-value {cls}">{money(amount)} · {percent:+.1f}%</span></div>')
 
+    snapshot_as_of = PRIVATE_SNAPSHOT.get("as_of") or HEALTH.get("portfolio_as_of")
+    snapshot_age = HEALTH.get("portfolio_age_hours")
+    snapshot_stale = bool(HEALTH.get("portfolio_stale"))
     broker_total = account.get("broker_total_value")
     broker_total = float(broker_total) if broker_total is not None else total
     def account_value(key, fallback):
@@ -753,11 +756,15 @@ def private_portfolio_panel():
     account_change = ((broker_total - total) / total * 100
                       if broker_total is not None and total else None)
     change_class = "gain" if (account_change or 0) > 0 else ("loss" if (account_change or 0) < 0 else "flat")
+    snapshot_meta = (f'券商快照：{esc(str(snapshot_as_of))}'
+                     + (f' · {float(snapshot_age):.1f} 小时前' if snapshot_age is not None else '')
+                     + (' · <b class="loss">已过期</b>' if snapshot_stale else ' · <b class="gain">新鲜</b>'))
     account_comparison = (
         '<div class="alloc-compare">'
+        + f'<div class="note">{snapshot_meta}</div>'
         + allocation_bar("Last close", close_assets, total)
         + f'<div class="alloc-change {change_class}"><span>Change</span><b>{maybe_pct(account_change)}</b></div>'
-        + allocation_bar("最新资产", latest_assets, broker_total)
+        + allocation_bar("券商资产（快照）", latest_assets, broker_total)
         + '</div>'
     )
 

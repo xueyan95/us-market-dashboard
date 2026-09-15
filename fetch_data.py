@@ -904,7 +904,10 @@ def main():
             snapshot_age_hours = round((datetime.datetime.now(datetime.timezone.utc) - stamp).total_seconds() / 3600, 1)
         except ValueError:
             pass
-    stale_snapshot = snapshot_age_hours is not None and snapshot_age_hours > 18
+    # A dashboard that calls an old broker snapshot "latest" is misleading.
+    # The local synchronizer refreshes before each scheduled build, so a full
+    # market cycle (16h) is already an overdue snapshot.
+    stale_snapshot = snapshot_age_hours is None or snapshot_age_hours > 16
     premarket_degraded = (REPORT_SLOT == "premarket" and not premarket.get("available"))
     health = {
         "status": "ok" if not missing_change and not stale_snapshot and not premarket_degraded else "degraded",

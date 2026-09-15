@@ -88,6 +88,11 @@ Robinhood runtime snapshot 是真实持仓、期权和成本的唯一来源。`p
 
 > 你已选择公开展示这些数据：任何能访问 GitHub Pages 或看板构建产物的人都可能看到它们。该 Secret 是静态快照，不能自行从 Robinhood 更新。自动更新仍需一个受控的本地同步器或私有 API。绝不要将 Robinhood 用户名、密码、MFA、Cookie 或连接器令牌放进 GitHub Secrets。
 
+本地受控同步器应在每次手动触发前，将只读券商数据写入临时 JSON，调用
+`sync_portfolio_snapshot.py --snapshot-file <temporary-file>`，再启动看板。
+该程序拒绝过期快照、无法对账的资产拆分和账户标识/认证字段，并只把 Base64
+快照流式写入 `PORTFOLIO_SNAPSHOT_B64`；快照本身不会进入 Git 或日志。
+
 新持仓会由 snapshot 自动加入行情抓取、AI、Telegram 和页面，不必再手工修改 `ALL_SYMS`。
 
 杠杆 ETF 在 `portfolio_config.json` 的 `leveraged_etfs` 中登记跟踪标的、每日杠杆倍数和方向。看板会把它自动放进跟踪标的所在的 AI 五层主题与趋势矩阵，并显示例如 `2x·COHR` 的标签；AI 分析也会按标的主题理解这笔风险敞口。
