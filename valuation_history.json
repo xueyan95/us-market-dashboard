@@ -77,12 +77,12 @@
       "date": "2026-09-14",
       "spy": {
         "forward_pe": 21.15,
-        "price": null,
+        "price": 760.88,
         "source": "State Street Price/Earnings Ratio FY1"
       },
       "soxx": {
         "forward_pe": null,
-        "price": null,
+        "price": 497.4,
         "coverage_pct": 0.0,
         "holdings_count": 33,
         "status": "insufficient_coverage",
