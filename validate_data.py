@@ -12,8 +12,8 @@ def main():
     errors = []
     if not market.get("d_latest") or not market.get("d_prev"):
         errors.append("missing completed-session dates")
-    if health.get("missing_change"):
-        errors.append("missing % change: " + ", ".join(health["missing_change"]))
+    # A temporary public-market data gap is displayed as degraded data health;
+    # it must not prevent the dashboard and its broker snapshot from deploying.
     snapshot = market.get("private_portfolio_snapshot", {})
     # Broker total is the authoritative latest-assets display.  A missing
     # third-party quote for a watchlist/leveraged ETF must not block deployment

@@ -119,6 +119,15 @@ jobs:
           BUSINESSQUANT_API_KEY: ${{ secrets.BUSINESSQUANT_API_KEY }}
         run: python fetch_valuation.py
 
+      - name: Persist public valuation history
+        if: ${{ fromJSON(steps.slot.outputs.slot_json).slot != 'skip' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add valuation_history.json
+          git diff --cached --quiet || git commit -m "Record public ETF valuation history"
+          git push
+
       - name: Validate dashboard inputs
         if: ${{ fromJSON(steps.slot.outputs.slot_json).slot != 'skip' }}
         run: python validate_data.py
@@ -149,15 +158,6 @@ jobs:
         env:
           REPORT_SLOT: ${{ env.REPORT_SLOT }}
         run: python gen_dashboard.py
-
-      - name: Persist public valuation history
-        if: ${{ fromJSON(steps.slot.outputs.slot_json).slot != 'skip' }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add valuation_history.json
-          git diff --cached --quiet || git commit -m "Record public ETF valuation history"
-          git push
 
       - name: Detect meaningful changes
         id: changes

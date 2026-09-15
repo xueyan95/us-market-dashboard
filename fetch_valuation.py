@@ -143,6 +143,16 @@ def update_history(history, observation):
     return history
 
 
+def current_valid_soxx(history, observation_date):
+    """Reuse a same-session valid point so scheduled reruns do not spend quota."""
+    for item in reversed(history.get("entries", [])):
+        soxx = item.get("soxx") or {}
+        if (item.get("date") == observation_date and soxx.get("status") == "ok"
+                and float(soxx.get("coverage_pct") or 0) >= MIN_SOXX_COVERAGE):
+            return soxx
+    return None
+
+
 def main():
     market_path = os.path.join(HERE, "market_data.json")
     market = load_json(market_path, {})
@@ -158,11 +168,20 @@ def main():
     except urllib.error.URLError as exc:
         print(f"[valuation] SPY official source unavailable: {exc.reason}")
 
+    history_path = os.path.join(HERE, "valuation_history.json")
+    prior_history = load_json(history_path, {"schema_version": 1, "entries": []})
+    prior_valid_soxx = current_valid_soxx(prior_history, observation_date)
     soxx_pe = soxx_coverage = None
     soxx_holdings_count = 0
     soxx_diagnostics = {}
     soxx_status = "missing_api_key" if not api_key else "source_error"
-    if api_key:
+    if prior_valid_soxx:
+        soxx_pe = prior_valid_soxx.get("forward_pe")
+        soxx_coverage = prior_valid_soxx.get("coverage_pct")
+        soxx_holdings_count = prior_valid_soxx.get("holdings_count", 0)
+        soxx_diagnostics = {"reused_same_session": 1}
+        soxx_status = "ok"
+    elif api_key:
         try:
             holdings = parse_soxx_holdings(get_text(SOXX_HOLDINGS_URL))
             soxx_pe, soxx_coverage, soxx_holdings_count, soxx_diagnostics = calculate_soxx_fy1(holdings, api_key, today)
@@ -181,8 +200,10 @@ def main():
                  "status": soxx_status, "diagnostics": soxx_diagnostics,
                  "source": "iShares holdings + BusinessQuant FY1 consensus EPS"},
     }
-    history_path = os.path.join(HERE, "valuation_history.json")
-    history = update_history(load_json(history_path, {"schema_version": 1, "entries": []}), observation)
+    # Never replace a valid same-day point with a transient provider failure.
+    if prior_valid_soxx and soxx_status != "ok":
+        observation["soxx"] = prior_valid_soxx
+    history = update_history(prior_history, observation)
     with open(history_path, "w", encoding="utf-8") as handle:
         json.dump(history, handle, ensure_ascii=False, indent=2)
         handle.write("\n")

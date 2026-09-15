@@ -9,7 +9,8 @@ from portfolio import inherit_leveraged_layer_categories, leveraged_etfs, load_p
 from should_notify import classify_slot
 from ai_analysis import build_prompt, display_chinese_strings, validate_grounding
 from research_inputs import parse_issue_body, public_entries
-from fetch_valuation import parse_soxx_holdings, parse_spy_fy1, select_fy1_eps, update_history
+from fetch_valuation import (current_valid_soxx, parse_soxx_holdings, parse_spy_fy1,
+                             select_fy1_eps, update_history)
 from sync_portfolio_snapshot import validate_snapshot
 
 
@@ -166,6 +167,11 @@ class CoreTests(unittest.TestCase):
         history = update_history({"entries": [{"date": "2026-01-01", "old": True}]},
                                  {"date": "2026-01-01", "new": True})
         self.assertEqual(history["entries"], [{"date": "2026-01-01", "new": True}])
+
+    def test_valid_same_day_soxx_observation_is_reused(self):
+        history = {"entries": [{"date": "2026-01-01", "soxx": {"status": "ok",
+                    "coverage_pct": 91, "forward_pe": 22.5}}]}
+        self.assertEqual(current_valid_soxx(history, "2026-01-01")["forward_pe"], 22.5)
 
 
 if __name__ == "__main__":
