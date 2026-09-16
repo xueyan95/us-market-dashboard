@@ -2,9 +2,9 @@
 """Validate and securely upload a fresh dashboard portfolio snapshot.
 
 This program deliberately has no broker integration and never writes a
-snapshot into the repository. A trusted local runner supplies a temporary JSON
-file created from a read-only broker response; this program validates it and
-streams its base64 encoding to a GitHub Actions secret.
+snapshot into the repository. A trusted local runner supplies a JSON document
+from a read-only broker response; this program validates it and streams its
+base64 encoding to a GitHub Actions secret.
 """
 from __future__ import annotations
 
@@ -101,13 +101,24 @@ def validate_snapshot(snapshot, max_age_minutes=20):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--snapshot-file", required=True, type=Path)
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--snapshot-file", type=Path)
+    source.add_argument(
+        "--stdin",
+        action="store_true",
+        help="Read snapshot JSON from standard input without a local copy.",
+    )
     parser.add_argument("--repo", default="xueyan95/us-market-dashboard")
     parser.add_argument("--secret-name", default="PORTFOLIO_SNAPSHOT_B64")
     parser.add_argument("--max-age-minutes", default=20, type=int)
     parser.add_argument("--validate-only", action="store_true")
     args = parser.parse_args()
-    snapshot = json.loads(args.snapshot_file.read_text(encoding="utf-8"))
+    raw_snapshot = (
+        sys.stdin.buffer.read()
+        if args.stdin
+        else args.snapshot_file.read_bytes()
+    )
+    snapshot = json.loads(raw_snapshot)
     summary = validate_snapshot(snapshot, args.max_age_minutes)
     if args.validate_only:
         print(json.dumps(summary, ensure_ascii=False))
