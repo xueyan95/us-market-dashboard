@@ -148,6 +148,25 @@
         },
         "source": "iShares holdings + BusinessQuant FY1 consensus EPS"
       }
+    },
+    {
+      "date": "2026-09-18",
+      "spy": {
+        "forward_pe": 21.08,
+        "price": 761.69,
+        "source": "State Street Price/Earnings Ratio FY1"
+      },
+      "soxx": {
+        "forward_pe": 18.19,
+        "price": 533.07,
+        "coverage_pct": 100.0,
+        "holdings_count": 32,
+        "status": "ok",
+        "diagnostics": {
+          "ok": 32
+        },
+        "source": "iShares holdings + BusinessQuant FY1 consensus EPS"
+      }
     }
   ]
 }
