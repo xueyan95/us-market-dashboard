@@ -5,7 +5,7 @@
       "date": "2023-12-29",
       "spy": {
         "forward_pe": 21.42,
-        "price": 461.39,
+        "price": 460.25,
         "source": "Siblis U.S. Large Cap forward P/E proxy (month-end)",
         "proxy": true
       }
@@ -14,7 +14,7 @@
       "date": "2024-06-28",
       "spy": {
         "forward_pe": 20.93,
-        "price": 531.63,
+        "price": 530.32,
         "source": "Siblis U.S. Large Cap forward P/E proxy (month-end)",
         "proxy": true
       }
@@ -23,7 +23,7 @@
       "date": "2024-12-31",
       "spy": {
         "forward_pe": 21.49,
-        "price": 576.22,
+        "price": 574.79,
         "source": "Siblis U.S. Large Cap forward P/E proxy (month-end)",
         "proxy": true
       }
@@ -32,7 +32,7 @@
       "date": "2025-03-31",
       "spy": {
         "forward_pe": 20.25,
-        "price": 551.63,
+        "price": 550.26,
         "source": "Siblis U.S. Large Cap forward P/E proxy (month-end)",
         "proxy": true
       }
@@ -41,7 +41,7 @@
       "date": "2025-06-30",
       "spy": {
         "forward_pe": 22.06,
-        "price": 611.08,
+        "price": 609.57,
         "source": "Siblis U.S. Large Cap forward P/E proxy (month-end)",
         "proxy": true
       }
@@ -50,7 +50,7 @@
       "date": "2025-09-30",
       "spy": {
         "forward_pe": 22.8,
-        "price": 660.71,
+        "price": 659.07,
         "source": "Siblis U.S. Large Cap forward P/E proxy (month-end)",
         "proxy": true
       }
@@ -59,7 +59,7 @@
       "date": "2025-12-31",
       "spy": {
         "forward_pe": 21.88,
-        "price": 678.32,
+        "price": 676.64,
         "source": "Siblis U.S. Large Cap forward P/E proxy (month-end)",
         "proxy": true
       }
@@ -68,7 +68,7 @@
       "date": "2026-06-30",
       "spy": {
         "forward_pe": 20.55,
-        "price": 746.77,
+        "price": 744.92,
         "source": "Siblis U.S. Large Cap forward P/E proxy (month-end)",
         "proxy": true
       }
@@ -152,7 +152,7 @@
     {
       "date": "2026-09-18",
       "spy": {
-        "forward_pe": 21.08,
+        "forward_pe": 21.17,
         "price": 761.69,
         "source": "State Street Price/Earnings Ratio FY1"
       },
@@ -163,7 +163,7 @@
         "holdings_count": 32,
         "status": "ok",
         "diagnostics": {
-          "ok": 32
+          "reused_same_session": 1
         },
         "source": "iShares holdings + BusinessQuant FY1 consensus EPS"
       }
