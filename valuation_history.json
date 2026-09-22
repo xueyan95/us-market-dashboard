@@ -201,7 +201,7 @@
         "holdings_count": 32,
         "status": "ok",
         "diagnostics": {
-          "ok": 32
+          "reused_same_session": 1
         },
         "source": "iShares holdings + BusinessQuant FY1 consensus EPS"
       }
