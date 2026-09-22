@@ -11,10 +11,6 @@ import os
 import datetime
 import html as _html
 import re
-from portfolio import (holding_names, holding_symbols, inherit_leveraged_layer_categories,
-                       inherit_leveraged_matrix_categories, leveraged_etfs,
-                       load_effective_portfolio, option_underlyings)
-from portfolio_snapshot import load_portfolio_snapshot
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -25,13 +21,14 @@ def esc(s):
         return ""
     return _html.escape(str(s), quote=True)
 
-# ---------------- 持仓与五层蛋糕分组（黄仁勋框架） ----------------
-PORTFOLIO_CONFIG = load_effective_portfolio()
-HOLDINGS = holding_symbols(PORTFOLIO_CONFIG, market_prefix=True)
-HOLD_NAME = holding_names(PORTFOLIO_CONFIG)
-OPTION_UNDERLYINGS = option_underlyings(PORTFOLIO_CONFIG)
-HOLD_SET = set(HOLDINGS)
-LEVERAGED_ETFS = leveraged_etfs(PORTFOLIO_CONFIG)
+# ---------------- 公开观察池与五层分组（黄仁勋框架） ----------------
+# This artifact is deployed to GitHub Pages.  It must never render account,
+# position, order, or private-thesis data; the private local console owns those.
+HOLDINGS = []
+HOLD_NAME = {}
+OPTION_UNDERLYINGS = []
+HOLD_SET = set()
+LEVERAGED_ETFS = {}
 
 LAYERS = [
     ("⑤ 应用", "应用软件 / 终端 / 消费 AI",
@@ -61,8 +58,6 @@ MATRIX_LAYERS = [
     ("② 芯片", ["usNVDA", "usAMD", "usTSM", "usAVGO", "usMU", "usARM", "usASML", "usAMAT", "usAEHR", "usMRVL", "usINTC", "usWOLF"]),
     ("① 能源", ["usVST", "usCEG", "usGEV", "usBE", "usOKLO"]),
 ]
-LAYERS = inherit_leveraged_layer_categories(LAYERS, PORTFOLIO_CONFIG, HOLDINGS)
-MATRIX_LAYERS = inherit_leveraged_matrix_categories(MATRIX_LAYERS, PORTFOLIO_CONFIG, HOLDINGS)
 LAYER_SYMBOLS = {symbol for _, _, cats in LAYERS for _, symbols in cats for symbol in symbols}
 
 TREND_LABELS = [("1日", "chg_pct"), ("1周", "p1w"), ("1月", "p1m"), ("3月", "p3m")]
@@ -199,7 +194,6 @@ D_LATEST = M.get("d_latest", "—")
 D_PREV = M.get("d_prev", "—")
 REFERENCE_CLOSE = M.get("session_context", {}).get("reference_close_date", D_LATEST)
 REPORT_DATE = M.get("session_context", {}).get("target_session_date", D_LATEST)
-PRIVATE_SNAPSHOT = M.get("private_portfolio_snapshot") or load_portfolio_snapshot()
 REPORT_SLOT = os.environ.get("REPORT_SLOT", A.get("report_slot", "postmarket"))
 REPORT_LABEL = {"premarket": "盘前作战卡", "postmarket": "收盘复盘"}.get(REPORT_SLOT, "市场报告")
 DATA_BASIS = (
@@ -800,9 +794,6 @@ def private_portfolio_panel():
     <div class="note">Greeks 为 Black-Scholes 估算（无股息、无风险利率假设 4%），用于风险方向参考；报价、IV 与流动性仍以券商为准。</div>'''
 
 
-private_panel = private_portfolio_panel()
-
-
 def research_panel():
     """Render explicitly public records and grounded news-to-thesis suggestions."""
     entries = RESEARCH.get("entries", []) or []
@@ -1170,39 +1161,26 @@ body = f"""
     </div>
   </div>
   <div class="meta">生成：{GEN_TIME} · {DATA_BASIS} · 涨红跌绿（中国习惯）· 数据源：westockdata / Nasdaq / yfinance / SiliconFlow</div>
-  <div class="health {'degraded' if HEALTH.get('status') != 'ok' else ''}">数据健康：{esc(HEALTH.get('status','unknown'))} · 行情 {HEALTH.get('quote_count','—')} 只{PM_HEALTH} · 必需标的缺失涨跌幅：{esc(', '.join(HEALTH.get('missing_change', [])) or '无')} · 持仓快照：{esc(HEALTH.get('portfolio_as_of') or '未载入')}（{esc(HEALTH.get('portfolio_age_hours','—'))} 小时前）· 新闻：{esc(HEALTH.get('news_as_of') or '未载入')}</div>
+  <div class="health {'degraded' if HEALTH.get('status') != 'ok' else ''}">数据健康：{esc(HEALTH.get('status','unknown'))} · 行情 {HEALTH.get('quote_count','—')} 只{PM_HEALTH} · 必需标的缺失涨跌幅：{esc(', '.join(HEALTH.get('missing_change', [])) or '无')} · 新闻：{esc(HEALTH.get('news_as_of') or '未载入')}</div>
 </header>
 
 <nav class="tabbar" role="tablist" aria-label="看板分区">
-  <button class="tab-btn" id="tab-btn-decision" role="tab" aria-controls="tab-decision" aria-selected="true" data-tab="decision"><span class="tab-icon" aria-hidden="true">◆</span><span class="tab-label">决策</span></button>
+  <button class="tab-btn" id="tab-btn-decision" role="tab" aria-controls="tab-decision" aria-selected="true" data-tab="decision"><span class="tab-icon" aria-hidden="true">◆</span><span class="tab-label">概览</span></button>
   <button class="tab-btn" id="tab-btn-market" role="tab" aria-controls="tab-market" aria-selected="false" data-tab="market" tabindex="-1"><span class="tab-icon" aria-hidden="true">≋</span><span class="tab-label">市场</span></button>
-  <button class="tab-btn" id="tab-btn-portfolio" role="tab" aria-controls="tab-portfolio" aria-selected="false" data-tab="portfolio" tabindex="-1"><span class="tab-icon" aria-hidden="true">▥</span><span class="tab-label">持仓</span></button>
   <button class="tab-btn" id="tab-btn-information" role="tab" aria-controls="tab-information" aria-selected="false" data-tab="information" tabindex="-1"><span class="tab-icon" aria-hidden="true">●</span><span class="tab-label">信息</span></button>
 </nav>
 
 <main>
 <section class="tab-panel" id="tab-decision" role="tabpanel" aria-labelledby="tab-btn-decision">
 <div class="card">
-  <h2>决策驾驶舱 <span class="tag">组合规则 + Thesis 验证</span></h2>
-  <div class="sec-desc">优先显示与你持仓直接相关的风险；命题是待验证假设，不是既定事实。</div>
-  {decision_cockpit()}
+  <h2>公开市场页 <span class="tag">市场 + 明确公开的研究</span></h2>
+  <div class="sec-desc">账户、订单、持仓、私有 thesis 与复盘只保存在本机私有操作台；本页不接收或展示这些数据。</div>
 </div>
 
 <div class="card">
   <h2>我的研究输入 <span class="tag">Thesis · 证伪 · 概率</span></h2>
   <div class="sec-desc">原始判断由你维护；AI 只把可追溯新闻映射为支持、反对、时点或替代解释，并把概率变化作为待确认建议。</div>
   {research_html}
-</div>
-
-<div class="card">
-  <h2>{AI_TITLE} <span class="tag">SiliconFlow · {esc(A.get('model') or '未启用')}</span></h2>
-  <div class="concl">{concl}</div>
-  <div class="q4">
-    <div><b>① {Q4_TITLES[0]}？</b> {q4[0]}</div>
-    <div><b>② {Q4_TITLES[1]}？</b> {q4[1]}</div>
-    <div><b>③ {Q4_TITLES[2]}？</b> <b>{q4[2]}</b>；≥7 分请等 24 小时再操作。</div>
-    <div><b>④ {Q4_TITLES[3]}？</b> {q4[3]}</div>
-  </div>
 </div>
 
 </section>
@@ -1248,28 +1226,16 @@ body = f"""
 </div>
 
 <div class="card">
-  <h2>AI 五层蛋糕 <span class="tag">黄仁勋框架 · 自上而下</span></h2>
-  <div class="sec-desc">标「仓」者为当前持仓；杠杆 ETF 按跟踪标的继承主题分类，并标注每日杠杆倍数；数据为 {D_LATEST} 收盘涨跌幅。</div>
+  <h2>AI 五层观察池 <span class="tag">黄仁勋框架 · 自上而下</span></h2>
+  <div class="sec-desc">这是公开市场观察池，不表示任何账户持仓或交易意图；数据为 {D_LATEST} 收盘涨跌幅。</div>
   {layer(*LAYERS[0])}
   {layer(*LAYERS[1])}
   {layer(*LAYERS[2])}
   {layer(*LAYERS[3])}
   {layer(*LAYERS[4])}
-  {layer("当前其他持仓", "无法映射到现有主题的 Robinhood 持仓", [("未分类", sorted(HOLD_SET - LAYER_SYMBOLS))]) if HOLD_SET - LAYER_SYMBOLS else ""}
   <h2 style="font-size:13.5px;margin-top:20px">趋势热力矩阵 <span class="tag">1日 / 1周 / 1月 / 3月</span></h2>
   <div class="sec-desc">行=个股（按五层分组），列=多周期涨跌幅；背景色块深浅=幅度，红=涨、绿=跌。数据：westockdata 70 日K线，截至 {D_LATEST}。</div>
   {heat_matrix()}
-</div>
-
-</section>
-<section class="tab-panel" id="tab-portfolio" role="tabpanel" aria-labelledby="tab-btn-portfolio" hidden>
-<div class="card">
-  <h2>⑤ 持仓与观察</h2>
-  <h2 style="font-size:13.5px">核心持仓 · 蝴蝶图（{len(HOLDINGS)}只 · 最近常规盘 {D_LATEST}）</h2>
-  {butterfly()}
-  {hold_summary}
-  <h2 style="font-size:13.5px;margin-top:18px">Robinhood 组合面板 <span class="tag">{'股票盘前价优先；期权最近常规报价' if REPORT_SLOT == 'premarket' else '常规盘收盘估值'}</span></h2>
-  {private_panel}
 </div>
 
 </section>

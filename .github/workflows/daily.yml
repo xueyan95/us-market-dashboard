@@ -95,18 +95,6 @@ jobs:
           RESEARCH_NOTES_TOKEN: ${{ secrets.RESEARCH_NOTES_TOKEN }}
         run: python sync_research_inputs.py
 
-      - name: Materialize Robinhood portfolio snapshot
-        if: ${{ fromJSON(steps.slot.outputs.slot_json).slot != 'skip' }}
-        env:
-          PORTFOLIO_SNAPSHOT_B64: ${{ secrets.PORTFOLIO_SNAPSHOT_B64 }}
-        run: |
-          if [ -z "$PORTFOLIO_SNAPSHOT_B64" ]; then
-            echo "No portfolio snapshot secret configured."
-          else
-            printf '%s' "$PORTFOLIO_SNAPSHOT_B64" | base64 --decode > portfolio_snapshot.json
-            echo "Robinhood portfolio snapshot materialized."
-          fi
-
       - name: Fetch market data
         if: ${{ fromJSON(steps.slot.outputs.slot_json).slot != 'skip' }}
         env:

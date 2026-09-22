@@ -11,9 +11,9 @@ import json
 import os
 import urllib.parse
 import urllib.request
-from portfolio import holding_symbols, load_effective_portfolio
+from portfolio import holding_symbols, load_portfolio_config
 
-PORTFOLIO_CONFIG = load_effective_portfolio()
+PORTFOLIO_CONFIG = load_portfolio_config()
 HOLDINGS = holding_symbols(PORTFOLIO_CONFIG)
 
 
@@ -102,7 +102,7 @@ def build_message():
         "",
     ]
 
-    # 持仓
+    # 公开观察池
     hold_lines = []
     for h in HOLDINGS:
         if report_slot == "premarket":
@@ -118,7 +118,7 @@ def build_message():
             else:
                 last_s = str(last)
             hold_lines.append(f"{h} {last_s} ({sign}{c}%)")
-    parts.append(f"【配置持仓 {len(HOLDINGS)} 只】")
+    parts.append(f"【公开观察池 {len(HOLDINGS)} 只】")
     parts.append(" · ".join(hold_lines))
     parts.append("")
 

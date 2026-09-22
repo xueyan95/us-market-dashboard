@@ -7,7 +7,7 @@
 
 ```
 should_notify.py（交易日/时段判断）
-    → fetch_news.py + fetch_data.py（新闻、行情、财报、持仓估值）
+    → fetch_news.py + fetch_data.py（新闻、行情、财报、公开观察池）
     → validate_data.py（关键数据完整性）
     → ai_analysis.py（只允许有 URL 证据的新闻卡片）
         → gen_dashboard.py（生成 index.html）
@@ -87,33 +87,27 @@ should_notify.py（交易日/时段判断）
 - **GitHub Pages**：直接访问 `https://<owner>.github.io/<repo>/`（推荐，无需登录）
 - **Artifacts**：每次运行后在 Actions 的 run 详情底部 → Artifacts → 下载 `us-market-dashboard` → 解压得 `index.html`（单文件、零外链、手机/电脑自适应、支持白天/夜间/跟随系统三态主题）
 
-## 修改持仓 / 观察股
+## 公开页与私有操作台
 
-Robinhood runtime snapshot 是真实持仓、期权和成本的唯一来源。`portfolio_config.json` 只保留观察名单及可选分类；snapshot 可用时不会用它覆盖真实持仓。
+GitHub Pages 是**公开市场页**：它只发布市场数据、公开观察池和明确标记为公开的研究。它不读取或展示账户、订单、持仓、成本、P&L、私有 thesis 或交易复盘。
 
-### Robinhood 仓位快照（公开展示模式）
+账户复盘在本机私有操作台完成。受控同步器在临时 mode-600 文件中校验只读券商快照后，调用：
 
-看板不直接保存或使用 Robinhood 登录信息。它只读取一个运行时快照：`portfolio_snapshot.json`（已被 `.gitignore` 排除）。格式见 `portfolio_snapshot.example.json`。
+```
+python3 sync_portfolio_snapshot.py --snapshot-file <temporary-file> \
+  --private-dashboard-file <local-private-dashboard>/data/current_snapshot.json
+```
 
-将快照 JSON 压成单行并 Base64 编码后，保存为仓库 Secret：`PORTFOLIO_SNAPSHOT_B64`。快照只保存数量、平均成本、现金和期权合约定义；不保存股票或期权市场价格。工作流会在每次运行时重新拉取价格，并计算最新市值、组合净值和浮动盈亏。
+随后运行本机私有操作台的 renderer。该流程不会把快照写入 Git、GitHub Secrets、Actions 输入或 Pages。绝不要将 Robinhood 用户名、密码、MFA、Cookie 或连接器令牌写入任何文件或 Secret。
 
-> 你已选择公开展示这些数据：任何能访问 GitHub Pages 或看板构建产物的人都可能看到它们。该 Secret 是静态快照，不能自行从 Robinhood 更新。自动更新仍需一个受控的本地同步器或私有 API。绝不要将 Robinhood 用户名、密码、MFA、Cookie 或连接器令牌放进 GitHub Secrets。
-
-本地受控同步器应在每次手动触发前，将只读券商数据写入临时 JSON，调用
-`sync_portfolio_snapshot.py --snapshot-file <temporary-file>`，再启动看板。
-该程序拒绝过期快照、无法对账的资产拆分和账户标识/认证字段，并只把 Base64
-快照流式写入 `PORTFOLIO_SNAPSHOT_B64`；快照本身不会进入 Git 或日志。
-
-新持仓会由 snapshot 自动加入行情抓取、AI、Telegram 和页面，不必再手工修改 `ALL_SYMS`。
-
-杠杆 ETF 在 `portfolio_config.json` 的 `leveraged_etfs` 中登记跟踪标的、每日杠杆倍数和方向。看板会把它自动放进跟踪标的所在的 AI 五层主题与趋势矩阵，并显示例如 `2x·COHR` 的标签；AI 分析也会按标的主题理解这笔风险敞口。
+`portfolio_config.json` 仅用于公开市场观察池的分类；它不是账户记录，也不代表当前持仓或交易意图。
 
 ## 数据边界与历史
 
 - A 股当前只覆盖上证、深证、沪深300和创业板指数行情；没有可靠中文新闻源时，AI 不得补写 A 股事件。
-- 每次 Actions 运行保留 90 天 artifact，内含 HTML、原始市场数据、AI 输出和投资框架，可用于历史复盘。
-- `notes/` 提供交易前记录和周度复盘模板；`investment_framework.json` 保存风险规则与待验证命题。
-- Telegram 仅在持仓变化、持仓单日波动 ≥5% 或组合规则越界时推送；手动运行始终推送。
+- 每次 Actions 运行保留 90 天 artifact，内含公开 HTML、市场数据、AI 输出和公开研究映射；不含账户数据。
+- `notes/` 提供交易前记录和周度复盘模板；本机私有操作台负责呈现账户复盘与日志缺口。
+- Telegram 推送只描述公开市场报告；不含账户、订单或持仓资料。
 
 编辑 `gen_dashboard.py` 顶部：
 - `LAYERS` —— AI 五层蛋糕分组
@@ -123,8 +117,8 @@ Robinhood runtime snapshot 是真实持仓、期权和成本的唯一来源。`p
 
 工作流由 `should_notify.py` 判定 `premarket` 或 `postmarket`，并传给 AI、HTML 与 Telegram：
 
-- **盘前作战卡**：抓取持仓、核心指数/板块 ETF 和 AI 主线核心池的 5 分钟延长时段报价，计算相对昨日 16:00 ET 常规盘收盘的变化；新闻只使用昨日收盘后新增且发布时间可验证的内容。没有盘前成交时明确显示缺失，不用昨收冒充实时价格。
-- **收盘复盘**：使用最近一个美东常规盘交易日的收盘数据，聚焦市场宽度、板块表现、组合贡献、thesis 验证与下一交易日事项。
+- **盘前作战卡**：抓取公开观察池、核心指数/板块 ETF 和 AI 主线核心池的 5 分钟延长时段报价，计算相对昨日 16:00 ET 常规盘收盘的变化；新闻只使用昨日收盘后新增且发布时间可验证的内容。没有盘前成交时明确显示缺失，不用昨收冒充实时价格。
+- **收盘复盘**：使用最近一个美东常规盘交易日的收盘数据，聚焦市场宽度、板块表现、公开研究的待验证证据与下一交易日事项。
 
 ## 免责声明
 

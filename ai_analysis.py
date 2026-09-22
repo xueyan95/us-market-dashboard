@@ -28,7 +28,7 @@ try:
     import yfinance as yf
 except ImportError:  # 允许只运行不需要联网的 schema/grounding 单元测试
     yf = None
-from portfolio import holding_symbols, leveraged_etfs, load_effective_portfolio
+from portfolio import holding_symbols, leveraged_etfs, load_portfolio_config
 
 API_KEY = os.environ.get("SILICONFLOW_API_KEY", "")
 MODEL = os.environ.get("SF_MODEL", "deepseek-ai/DeepSeek-V4-Pro")
@@ -38,7 +38,7 @@ except ValueError:
     THINKING_BUDGET = 2048
 BASE = "https://api.siliconflow.cn/v1"
 
-PORTFOLIO_CONFIG = load_effective_portfolio()
+PORTFOLIO_CONFIG = load_portfolio_config()
 HOLDINGS = holding_symbols(PORTFOLIO_CONFIG)
 LEVERAGED_ETFS = leveraged_etfs(PORTFOLIO_CONFIG)
 NEWS_TICKERS = ["^GSPC", "^IXIC", "NVDA", "AAPL", "MSFT", "TSLA", "GOOGL", "AMZN"]
@@ -213,7 +213,7 @@ def build_prompt(m, news, news_source, research=None):
 新闻只覆盖 {news_delta.get('window_start', '昨日16:00 ET')} 至 {news_delta.get('window_end', '提取时点')} 的新增内容。
 重点回答：隔夜新增了什么、预期发生了什么变化、异常 gap 是否有可验证催化、开盘后应验证什么。不要复述完整昨日行情。"""
     else:
-        slot_guidance = "这是盘后复盘。重点回答：当日市场宽度与板块表现、持仓贡献、哪些 thesis 被验证或证伪、下一交易日关注什么。"
+        slot_guidance = "这是盘后复盘。重点回答：当日市场宽度与板块表现、公开观察池的相对表现、公开研究有哪些待验证证据、下一交易日关注什么。"
 
     return f"""你是专业美股投研分析师。基于【行情】+【多源新闻上下文】（已用本地粗分类标记主题）输出纯 JSON。
 
@@ -224,7 +224,7 @@ def build_prompt(m, news, news_source, research=None):
 【核心指数】
 {chr(10).join(idx_lines)}
 
-【用户持仓 {len(HOLDINGS)} 只】
+【公开观察池 {len(HOLDINGS)} 只】
 {chr(10).join(hold_lines)}
 
 【AI 五层蛋糕关键股】

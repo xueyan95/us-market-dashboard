@@ -20,8 +20,7 @@ import concurrent.futures as cf
 import math
 from zoneinfo import ZoneInfo
 from portfolio import (holding_names, holding_symbols, leveraged_etfs,
-                       load_effective_portfolio, option_underlyings)
-from portfolio_snapshot import load_portfolio_snapshot, snapshot_equity_symbols
+                       load_portfolio_config, option_underlyings)
 
 # ---------------- 配置 ----------------
 ALL_SYMS = (
@@ -32,7 +31,7 @@ ALL_SYMS = (
     "usCRM,usPLTR,usADBE,usCRWD,usAAPL,usTSLA,usVST,usCEG,usGEV,usBE,usOKLO,usNOK,usAEHR,"
     "usAEHG,usCOHX,usNBIL,usNOWL,usBEX,usAPPX"
 )
-PORTFOLIO_CONFIG = load_effective_portfolio()
+PORTFOLIO_CONFIG = load_portfolio_config()
 HOLDINGS = holding_symbols(PORTFOLIO_CONFIG, market_prefix=True)
 HOLD_NAME = holding_names(PORTFOLIO_CONFIG)
 OPTION_UNDERLYINGS = option_underlyings(PORTFOLIO_CONFIG)
@@ -766,14 +765,8 @@ def fetch_rate_context(yf_data, econ_calendar):
 def main():
     today = datetime.datetime.now().strftime("%Y-%m-%d")
     print(f"=== fetch_data.py 运行于 {today} ===")
-    private_snapshot = load_portfolio_snapshot()
-    snapshot_symbols = snapshot_equity_symbols(private_snapshot)
-    market_symbols = list(dict.fromkeys(
-        ALL_SYMS.split(",") + [f"us{symbol}" for symbol in snapshot_symbols]
-    ))
+    market_symbols = list(dict.fromkeys(ALL_SYMS.split(",")))
     market_symbols_csv = ",".join(market_symbols)
-    state = f"已载入（{len(snapshot_symbols)} 只股票）" if private_snapshot.get("available") else "未载入"
-    print(f"Robinhood 仓位快照：{state}")
 
     # 1) 行情 K 线（70 日，覆盖 1日/1周/1月/3月 + RSI + 乖离率）
     print("拉取 westockdata K 线...")
@@ -861,7 +854,6 @@ def main():
             if key in valuation_quotes:
                 valuation_quotes[key]["last"] = item.get("price")
                 valuation_quotes[key]["chg_pct"] = item.get("change_pct")
-    private_snapshot = enrich_portfolio_snapshot(private_snapshot, valuation_quotes, quotes)
 
     # 5) NYSE / NASDAQ 涨跌家数（市场宽度）
     print("拉取 NYSE/NASDAQ 涨跌家数...")
@@ -899,30 +891,14 @@ def main():
     missing_change = [s.removeprefix("us") for s in required
                       if (quotes.get(s) or {}).get("chg_pct") is None]
     news_age = news_data.get("generated_at")
-    snapshot_as_of = private_snapshot.get("as_of") if private_snapshot.get("available") else None
-    snapshot_age_hours = None
-    if snapshot_as_of:
-        try:
-            stamp = datetime.datetime.fromisoformat(str(snapshot_as_of).replace("Z", "+00:00"))
-            snapshot_age_hours = round((datetime.datetime.now(datetime.timezone.utc) - stamp).total_seconds() / 3600, 1)
-        except ValueError:
-            pass
-    # A dashboard that calls an old broker snapshot "latest" is misleading.
-    # The local synchronizer refreshes before each scheduled build, so a full
-    # market cycle (16h) is already an overdue snapshot.
-    stale_snapshot = snapshot_age_hours is None or snapshot_age_hours > 16
     premarket_degraded = (REPORT_SLOT == "premarket" and not premarket.get("available"))
     health = {
-        "status": "ok" if not missing_change and not stale_snapshot and not premarket_degraded else "degraded",
+        "status": "ok" if not missing_change and not premarket_degraded else "degraded",
         "quote_count": len(quotes),
         "required_quote_count": len(required),
         "missing_change": missing_change,
         "market_as_of": d_latest,
         "news_as_of": news_age,
-        "portfolio_as_of": snapshot_as_of,
-        "portfolio_age_hours": snapshot_age_hours,
-        "portfolio_stale": stale_snapshot,
-        "portfolio_available": bool(private_snapshot.get("available")),
         "premarket_requested": premarket.get("requested", 0),
         "premarket_available": premarket.get("available_count", 0),
     }
@@ -937,8 +913,6 @@ def main():
             "extracted_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "reference_close_date": news_reference_date,
             "reference_close_time": f"{news_reference_date}T16:00:00 America/New_York",
-            "portfolio_valuation_basis": ("premarket where available; options at latest regular quote"
-                                          if REPORT_SLOT == "premarket" else "regular close"),
         },
         "quotes": quotes,
         "premarket": premarket,
@@ -951,7 +925,6 @@ def main():
             "leveraged_etfs": leveraged_etfs(PORTFOLIO_CONFIG),
             "note": "Public symbol-only configuration; quantities and cost basis are intentionally excluded.",
         },
-        "private_portfolio_snapshot": private_snapshot,
         "earnings": earnings,
         "yf": yf_data,
         "adv_dec": adv_dec,

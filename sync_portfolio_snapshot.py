@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Validate and securely upload a fresh dashboard portfolio snapshot.
+"""Validate and securely handle a fresh private dashboard snapshot.
 
 This program deliberately has no broker integration and never writes a
 snapshot into the repository. A trusted local runner supplies a JSON document
-from a read-only broker response; this program validates it and streams its
-base64 encoding to a GitHub Actions secret.
+from a read-only broker response; this program validates it and can write an
+owner-readable local copy. Secret upload is a legacy explicit opt-in.
 """
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ import argparse
 import base64
 import datetime as dt
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -110,8 +111,12 @@ def main():
     )
     parser.add_argument("--repo", default="xueyan95/us-market-dashboard")
     parser.add_argument("--secret-name", default="PORTFOLIO_SNAPSHOT_B64")
+    parser.add_argument("--upload-secret", action="store_true",
+                        help="Legacy opt-in only; never enabled by scheduled runs.")
     parser.add_argument("--max-age-minutes", default=20, type=int)
     parser.add_argument("--validate-only", action="store_true")
+    parser.add_argument("--private-dashboard-file", type=Path,
+                        help="Optional local-only copy for the private dashboard.")
     args = parser.parse_args()
     raw_snapshot = (
         sys.stdin.buffer.read()
@@ -120,7 +125,16 @@ def main():
     )
     snapshot = json.loads(raw_snapshot)
     summary = validate_snapshot(snapshot, args.max_age_minutes)
-    if args.validate_only:
+    if args.private_dashboard_file:
+        destination = args.private_dashboard_file.expanduser()
+        destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        os.chmod(destination.parent, 0o700)
+        temporary = destination.with_suffix(destination.suffix + ".tmp")
+        temporary.write_bytes(raw_snapshot)
+        os.chmod(temporary, 0o600)
+        os.replace(temporary, destination)
+        os.chmod(destination, 0o600)
+    if args.validate_only or not args.upload_secret:
         print(json.dumps(summary, ensure_ascii=False))
         return
     encoded = base64.b64encode(json.dumps(snapshot, separators=(",", ":"),
