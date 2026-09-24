@@ -209,7 +209,7 @@
     {
       "date": "2026-09-23",
       "spy": {
-        "forward_pe": 21.48,
+        "forward_pe": 21.31,
         "price": 767.81,
         "source": "State Street Price/Earnings Ratio FY1"
       },
@@ -220,7 +220,7 @@
         "holdings_count": 33,
         "status": "ok",
         "diagnostics": {
-          "ok": 33
+          "reused_same_session": 1
         },
         "source": "iShares holdings + BusinessQuant FY1 consensus EPS"
       }
